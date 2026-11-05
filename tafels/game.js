@@ -395,10 +395,10 @@ function renderGame() {
     : `<div class="keypad">${[7, 8, 9, 4, 5, 6, 1, 2, 3].map(n => `<button class="btn light" data-key="${n}">${n}</button>`).join('')}
         <button class="btn red" data-key="del">⌫</button><button class="btn light" data-key="0">0</button><button class="btn green" data-key="ok">OK</button></div>`;
   app.innerHTML = `<div class="screen game" id="gameScreen">
-    <div class="game-top"><button class="btn light sm" data-act="quit">✕ Stop</button>${top}<div class="streak" id="streak"></div></div>
+    <div class="game-top"><button class="btn light sm" data-act="quit">✕ Stop</button>${top}</div>
     <div class="stage">
       <div class="side"><div class="player" id="player">
-        <div class="bubble" id="bubble"></div>${avImg(p.avatar)}${p.pet ? img(PX.pet(p.pet), 'petimg mob') : ''}</div></div>
+        <div class="bubble" id="bubble"></div><div class="streak" id="streak"></div>${avImg(p.avatar)}${p.pet ? img(PX.pet(p.pet), 'petimg mob') : ''}</div></div>
       <div class="qcol"><div class="card question" id="question"><div class="sum" id="sum"></div>
         <div class="qfoot"><div class="speedbar"><div id="speed"></div></div>
           <button class="btn gold hintbtn" data-act="hint" title="Help: vul het antwoord in">?</button></div>
@@ -415,7 +415,12 @@ function updateHUD() {
   const pr = $('#progress');
   if (pr) pr.innerHTML = Array.from({ length: G.mainTotal }, (_, i) => `<i class="${G.results[i] || (G.current && !G.current.retry && G.current.idx === i ? 'cur' : '')}"></i>`).join('');
   const st = $('#streak');
-  if (st) { st.className = 'streak' + (G.streak >= 5 ? ' hot' : ''); st.innerHTML = G.streak >= 2 ? `${img(PX.flame())} ${G.streak} op rij` : ''; }
+  if (st) {
+    st.className = 'streak' + (G.streak >= 5 ? ' hot' : '');
+    st.innerHTML = G.streak >= 2 ? `${img(PX.flame())}${G.streak}` : '';
+    st.title = G.streak >= 2 ? G.streak + ' op rij' : '';
+    const pl = $('#player'); if (pl) pl.classList.toggle('onfire', G.streak >= 2);
+  }
   const h = $('#hearts'); if (h) h.innerHTML = Array.from({ length: 5 }, (_, i) => img(PX.heart(i < G.hearts))).join('');
   const hp = $('#hpBar'); if (hp) { hp.style.width = (G.bossHp / G.bossMax * 100) + '%'; $('#hpTxt').textContent = G.bossHp + ' / ' + G.bossMax; }
 }
@@ -553,6 +558,7 @@ function onWrong(q, btn) {
   G.streak = 0;
   showSum('wrong');
   SFX.wrong();
+  updateHUD();
   if (G.mode === 'boss') {
     G.hearts--; SFX.hurt();
     const gs = $('#gameScreen'); gs.classList.remove('screen-shake'); void gs.offsetWidth; gs.classList.add('screen-shake');
