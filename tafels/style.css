@@ -176,10 +176,13 @@ h2 { font-size: clamp(20px, 2.8vw, 26px); }
 .choices .btn.correct { background: var(--green); box-shadow: 0 5px 0 var(--green-d); }
 .choices .btn.wrongc { background: var(--red); box-shadow: 0 5px 0 var(--red-d); opacity: .6; pointer-events: none; }
 
-.streak { display: flex; align-items: center; gap: 6px; font-weight: 900; font-size: 18px; color: #fff; background: rgba(0,0,0,.18); padding: 5px 14px 5px 8px; border-radius: 99px; }
-.streak:empty { visibility: hidden; }
-.streak img { width: 26px; height: 26px; }
-.streak.hot { background: var(--gold); animation: pulse .6s infinite alternate; }
+/* reeks: badge op het poppetje + gloeiende rand, kost geen extra ruimte */
+.streak { position: absolute; top: -10px; left: -12px; z-index: 2; display: flex; align-items: center; gap: 2px; font-weight: 900; font-size: 16px; color: #fff;
+  background: var(--red); padding: 2px 8px 2px 4px; border-radius: 99px; box-shadow: 0 3px 0 var(--red-d); }
+.streak:empty { display: none; }
+.streak img { width: 20px; height: 20px; }
+.streak.hot { background: var(--gold); box-shadow: 0 3px 0 var(--gold-d); animation: pulse .6s infinite alternate; }
+.player.onfire .avbox { box-shadow: 0 0 0 4px #ff9a1c, 0 0 18px 4px rgba(255,154,28,.7); }
 @keyframes pulse { to { transform: scale(1.07); } }
 
 .timerbar { height: 26px; background: rgba(255,255,255,.75); border-radius: 99px; position: relative; overflow: hidden; }
@@ -286,10 +289,26 @@ input.name:focus { outline: none; border-color: var(--blue); }
 .center { text-align: center; }
 
 @media (max-width: 640px) {
-  .stage { grid-template-columns: 1fr 1fr; }
+  #app { padding-top: max(10px, env(safe-area-inset-top)); }
+  .screen.game { gap: 8px; }
+  .stage { grid-template-columns: 1fr 1fr; gap: 6px 10px; }
   .stage .qcol { grid-column: 1 / -1; order: -1; }
   .editor { grid-template-columns: 1fr; justify-items: center; }
-  .mine-wrap .guard { left: -30px; }
+  .progress { padding: 5px 8px; gap: 4px; } .progress i { width: 12px; height: 12px; }
+  .question { padding: 10px 12px 6px; }
+  .qfoot { margin-top: 6px; gap: 8px; }
+  .speedbar { height: 7px; }
+  .hintbtn { width: 34px; height: 34px; font-size: 18px; box-shadow: 0 3px 0 var(--gold-d); }
+  .feedback { min-height: 20px; font-size: 15px; margin-top: 3px; }
+  .bubble { display: none; }
+  .player img.av { width: 64px; height: 64px; }
+  .player .petimg { width: 36px; height: 36px; right: -22px; }
+  .mine-block { width: 76px; }
+  .mine-wrap .guard { width: 40px; height: 40px; left: -30px; bottom: -6px; }
+  .pickaxe-swing { width: 44px; height: 44px; right: -26px; bottom: -10px; }
+  .boss-img { width: 84px; height: 84px; }
+  .keypad { gap: 8px; } .keypad .btn { padding: 11px 0; }
+  .choices { gap: 10px; } .choices .btn { padding: 14px 0; }
 }
 @media (min-height: 900px) and (min-width: 700px) {
   .keypad { max-width: 540px; gap: 14px; }
