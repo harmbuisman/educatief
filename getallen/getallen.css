@@ -91,3 +91,39 @@
   .wbar .wn { width: 110px; }
   .scene { padding: 6px 34px 0; }
 }
+
+/* ================= past altijd in het venster ================= */
+.screen.game > .question { display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden; }
+#qbody { display: flex; flex-direction: column; align-items: center; }
+#qbody .nline { align-self: stretch; }
+/* Smal/staand: opdracht bovenaan, toetsen in het midden, poppetje en blok onderaan op de grond */
+.screen.game > .game-top { order: 0; }
+.screen.game > .question { order: 1; }
+.screen.game > #inputArea { order: 2; }
+.screen.game > .scene { order: 3; padding-top: 0; }
+.screen.game .scene .player img.av { width: 58px; height: 58px; }
+.screen.game .scene .mine-block { width: 64px; }
+.screen.game .scene .mine-wrap .guard { width: 38px; height: 38px; left: -28px; }
+.screen.game .scene .pickaxe-swing { width: 40px; height: 40px; right: -24px; bottom: -8px; }
+.screen.game .scene .boss-img { width: 72px; height: 72px; }
+.screen.game .scene .boss-name { display: none; }
+.screen.game .scene .petimg { width: 34px; height: 34px; right: -20px; }
+/* Breed: opdracht links over de hele hoogte, rechts toetsen met poppetje en blok eronder */
+@media (min-aspect-ratio: 5/4) and (min-width: 700px) {
+  .screen.game > .question { grid-column: 1; grid-row: 2 / 4; }
+  .screen.game > #inputArea { grid-column: 2; grid-row: 2; align-items: center; }
+  .screen.game > .scene { grid-column: 2; grid-row: 3; padding: 0 34px; }
+  .screen.game .scene .player img.av { width: 64px; height: 64px; }
+  .screen.game .scene .mine-block { width: 70px; }
+  .screen.game .scene .boss-img { width: 84px; height: 84px; }
+}
+@media (max-height: 760px) {
+  .box { font-size: clamp(20px, 5.4vh, 36px); }
+  .nline { height: 84px; }
+  .dots { margin-top: 8px; }
+  .dots img, .dots .ghost { width: 22px; height: 22px; }
+  .split .legs { height: 26px; }
+  .qtext { margin-bottom: 6px; }
+  .slot-box, .nblock { width: clamp(46px, 9vh, 64px); height: clamp(46px, 9vh, 64px); }
+  .pick2 .nblock { width: clamp(70px, 15vh, 110px); height: clamp(70px, 15vh, 110px); }
+}
