@@ -24,13 +24,44 @@ const WORLDS = [
   { t: 8, name: 'Vulkaan', block: 'lava', mob: 'lavareus' },
   { t: 9, name: 'Diamantgrot', block: 'diamond', mob: 'kristaldraak' }
 ];
-// Volgorde van de eindbazen in het reuzengevecht
+// Eindbazen: de ladder loopt van makkelijk naar moeilijk. Elke baas heeft een eigen 'rang'.
+const BOSS_BLOCK = { golem: 'stone', slijm: 'grass', spin: 'stone', draak: 'lava', cycloop: 'grass', kraken: 'ice', ridder: 'bricks', tovenaar: 'snow' };
 const BOSSES = [
-  { mob: 'rotsreus', block: 'stone' }, { mob: 'paddo', block: 'grass' }, { mob: 'spookje', block: 'bricks' },
-  { mob: 'ijsreus', block: 'ice' }, { mob: 'robo', block: 'gold' }, { mob: 'pompoen', block: 'planks' },
-  { mob: 'vleermuis', block: 'stone' }, { mob: 'goudreus', block: 'gold' }, { mob: 'lavareus', block: 'lava' },
-  { mob: 'kristaldraak', block: 'diamond' }, { mob: 'schaduwreus', block: 'obsidian' }
+  { id: 'rotsreus', mob: 'rotsreus', block: 'stone' }, { id: 'paddo', mob: 'paddo', block: 'grass' }, { id: 'spookje', mob: 'spookje', block: 'bricks' },
+  { id: 'ijsreus', mob: 'ijsreus', block: 'ice' }, { id: 'robo', mob: 'robo', block: 'gold' }, { id: 'pompoen', mob: 'pompoen', block: 'planks' },
+  { id: 'vleermuis', mob: 'vleermuis', block: 'stone' }, { id: 'goudreus', mob: 'goudreus', block: 'gold' }, { id: 'lavareus', mob: 'lavareus', block: 'lava' },
+  { id: 'kristaldraak', mob: 'kristaldraak', block: 'diamond' }, { id: 'schaduwreus', mob: 'schaduwreus', block: 'obsidian' }
 ];
+// De nieuwe bazen komen voor de Schaduwreus; de Oerdraak is de allerlaatste.
+const OLD_BOSS_IDS = BOSSES.map(b => b.id);
+BOSSES.splice(BOSSES.length - 1, 0, ...PX.BIGBOSSES.filter(b => b.id !== 'oerdraak').map(b => ({ id: b.id, big: true, block: BOSS_BLOCK[b.shape] || 'stone' })));
+BOSSES.push({ id: 'oerdraak', big: true, block: 'obsidian' });
+BOSSES.forEach((b, i) => b.rank = i);
+const bossById = id => BOSSES.find(b => b.id === id) || BOSSES[0];
+const bossName = b => b.big ? PX.BIGBOSSES.find(x => x.id === b.id).name : PX.MOBS[b.mob].name;
+const bossPic = b => b.big ? PX.bigboss(b.id) : PX.mob(b.mob);
+// Moeilijkheid: hoger bij een hogere rang, en nog hoger bij elke herkansing tegen een al verslagen baas.
+function bossLevel(p, b) { return b.rank + 4 * ((p.bossWins || {})[b.id] || 0); }
+function bossStats(d) {
+  return {
+    hp: Math.min(12 + 2 * d, 90),
+    hearts: d < 8 ? 5 : d < 20 ? 4 : 3,
+    secs: d < 3 ? 0 : Math.max(3.5, 11 - 0.2 * (d - 3)),   // 0 = geen aanvalstijd
+    stars: d < 8 ? 1 : d < 18 ? 2 : d < 30 ? 3 : d < 42 ? 4 : 5
+  };
+}
+// Kies de volgende baas: eerst nog niet verslagen bazen van de laagste rang, nooit dezelfde als de vorige.
+function chooseBoss(p) {
+  const wins = p.bossWins || {}, recent = p.bossRecent || [];
+  let pool = BOSSES.filter(b => !wins[b.id]);
+  if (pool.length) pool = pool.slice(0, 3);
+  else pool = [...BOSSES].sort((a, b) => bossLevel(p, a) - bossLevel(p, b)).slice(0, 8);
+  let cand = pool.filter(b => !recent.includes(b.id));
+  if (!cand.length) cand = pool.filter(b => b.id !== recent[0]);
+  if (!cand.length) cand = BOSSES.filter(b => b.id !== recent[0]);
+  return rnd(cand).id;
+}
+function nextBoss(p) { if (!p.nextBoss || !BOSSES.some(b => b.id === p.nextBoss)) { p.nextBoss = chooseBoss(p); save(); } return bossById(p.nextBoss); }
 const MOB_IDS = Object.keys(PX.MOBS);
 const mobWhere = id => { const w = WORLDS.find(w => w.mob === id); return w ? `Vang in ${w.name} (tafel ${w.t})` : 'Versla als eindbaas'; };
 const ORES = [
@@ -49,7 +80,7 @@ const title = lvl => TITLES.filter(t => lvl >= t[0]).pop()[1];
 const xpFor = lvl => 100 + (lvl - 1) * 50;
 const PRAISE = ['Goed zo!', 'Top!', 'Super!', 'Knap!', 'Geweldig!', 'Yes!', 'Briljant!', 'Wauw!', 'Lekker bezig!'];
 const TRYAGAIN = ['Probeer nog eens!', 'Bijna! Nog een keer.', 'Oeps, kijk nog eens goed.', 'Nog één poging!'];
-const MODE_UNLOCK = { mix: 1, race: 2, boss: 3 };
+const MODE_UNLOCK = { mix: 1, race: 2, race5: 2, boss: 3 };
 const T_CORRECT = 700, T_GIVEUP = 1300, T_RETRY = 650;
 
 const ACH = [
@@ -74,6 +105,9 @@ const ACH = [
   { id: 'smaragd', name: 'Zeldzame vondst', desc: 'Vind een smaragd', icon: () => PX.ore('smaragd'), test: p => p.found.smaragd >= 1 },
   { id: 'baas1', name: 'Reuzendoder', desc: 'Versla een eindbaas', icon: () => PX.sword(2), test: p => p.stats.bosses >= 1 },
   { id: 'baas5', name: 'Held van de mijn', desc: 'Versla 5 eindbazen', icon: () => PX.sword(4), test: p => p.stats.bosses >= 5 },
+  { id: 'baas15', name: 'Bazenjager', desc: 'Versla 15 verschillende eindbazen', icon: () => PX.bigboss('vuurdraak'), test: p => Object.keys(p.bossWins || {}).length >= 15 },
+  { id: 'baasall', name: 'Koning van de bazen', desc: 'Versla alle eindbazen', icon: () => PX.bigboss('oerdraak'), test: p => BOSSES.every(b => (p.bossWins || {})[b.id]) },
+  { id: 'race5', name: 'Marathon', desc: '100 goed in de 5-minutenrace', icon: () => PX.clock(), test: p => p.stats.race5Best >= 100 },
   { id: 'race20', name: 'Racer', desc: '20 goed in de tijdrace', icon: () => PX.clock(), test: p => p.stats.raceBest >= 20 },
   { id: 'race35', name: 'Turbo', desc: '35 goed in de tijdrace', icon: () => PX.clock(), test: p => p.stats.raceBest >= 35 },
   { id: 'huisdier', name: 'Beste vriendje', desc: 'Koop een huisdier', icon: () => PX.pet('kuiken'), test: p => p.owned.pets.length >= 1 },
@@ -92,7 +126,8 @@ function newProfile(name, avatar) {
     found: { kolen: 0, ijzer: 0, goud: 0, robijn: 0, diamant: 0, smaragd: 0 },
     stars: {}, best: {}, facts: {}, ach: {}, mobs: {},
     owned: { hats: ['geen'], pets: [] }, pet: null,
-    stats: { rounds: 0, correct: 0, wrong: 0, hints: 0, bosses: 0, bestStreak: 0, raceBest: 0 },
+    stats: { rounds: 0, correct: 0, wrong: 0, hints: 0, bosses: 0, bestStreak: 0, raceBest: 0, race5Best: 0 },
+    bossWins: {}, bossRecent: [], nextBoss: null,
     settings: { input: 'keypad', unlockAll: false }
   };
 }
@@ -105,7 +140,11 @@ function fillDefaults(obj, tpl) {
 function load() {
   try { DB = JSON.parse(localStorage.getItem(SAVE)); } catch (e) { DB = null; }
   if (!DB || !Array.isArray(DB.profiles)) DB = { profiles: [], current: null, sound: true };
-  DB.profiles.forEach(p => fillDefaults(p, newProfile(p.name, p.avatar)));
+  DB.profiles.forEach(p => {
+    fillDefaults(p, newProfile(p.name, p.avatar));
+    // oude spelers: bazen die al verslagen waren (vaste volgorde) tellen mee
+    if (p.stats.bosses > 0 && !Object.keys(p.bossWins).length) OLD_BOSS_IDS.slice(0, Math.min(p.stats.bosses, OLD_BOSS_IDS.length)).forEach(id => p.bossWins[id] = 1);
+  });
 }
 function save() { try { localStorage.setItem(SAVE, JSON.stringify(DB)); } catch (e) { } }
 const P = () => DB.profiles.find(p => p.id === DB.current);
@@ -289,11 +328,12 @@ function renderEditor(existing) {
 function renderHome() {
   G = null; EDIT = null; setBiome('grass');
   const p = P();
-  const nb = BOSSES[p.stats.bosses % BOSSES.length];
+  const nb = nextBoss(p), nbs = bossStats(bossLevel(p, nb));
   const modes = [
     { act: 'mix', icon: PX.block('obsidian'), name: 'Mix-mijn', desc: '15 sommen uit al je werelden', cls: 'purple' },
-    { act: 'race', icon: PX.clock(), name: 'Tijdrace', desc: `Zoveel mogelijk in 60 sec · record ${p.stats.raceBest}`, cls: 'gold' },
-    { act: 'boss', icon: PX.mob(nb.mob), name: 'Eindbaas', desc: `Versla ${PX.MOBS[nb.mob].name}!`, cls: 'red' }
+    { act: 'race', icon: PX.clock(), name: 'Tijdrace 1 min', desc: `Zoveel mogelijk in 60 sec · record ${p.stats.raceBest}`, cls: 'gold' },
+    { act: 'race5', icon: PX.clock(), name: 'Tijdrace 5 min', desc: `Houd het 5 minuten vol · record ${p.stats.race5Best}`, cls: 'gold' },
+    { act: 'boss', icon: bossPic(nb), name: 'Eindbaas', desc: `${bossName(nb)} · ${'★'.repeat(nbs.stars)}${'☆'.repeat(5 - nbs.stars)}`, cls: 'red' }
   ];
   app.innerHTML = `<div class="screen">
     ${topbar()}
@@ -314,7 +354,7 @@ function renderHome() {
     <div class="modes">
       ${modes.map(m => {
         const need = MODE_UNLOCK[m.act], ok = p.level >= need;
-        return `<button class="btn ${ok ? m.cls : 'light'} mode" data-act="${ok ? m.act : 'lockedMode'}" data-need="${need}">${img(ok ? m.icon : PX.lock(), ok && m.act === 'boss' ? 'mob' : '')}<span>${m.name}<small>${ok ? m.desc : 'Vanaf level ' + need}</small></span></button>`;
+        return `<button class="btn ${ok ? m.cls : 'light'} mode" data-act="${ok ? m.act : 'lockedMode'}" data-need="${need}">${img(ok ? m.icon : PX.lock(), ok && m.act === 'boss' ? 'mob bossicon' : '')}<span>${m.name}<small>${ok ? m.desc : 'Vanaf level ' + need}</small></span></button>`;
       }).join('')}
     </div>
     <div class="menu-row">
@@ -359,19 +399,22 @@ function startRound(mode, table) {
   G.mainTotal = G.queue.length;
   if (mode === 'tafel') { const w = WORLDS.find(w => w.t === table); G.block = w.block; G.mob = w.mob; }
   if (mode === 'mix') { G.block = 'obsidian'; G.mob = rnd(unlockedTables(p).map(t => WORLDS.find(w => w.t === t).mob)); }
-  if (mode === 'race') { G.block = 'planks'; G.mob = 'wolkje'; }
+  if (mode === 'race') { G.block = 'planks'; G.mob = 'wolkje'; G.raceSecs = 60; }
+  if (mode === 'race5') { G.mode = mode = 'race'; G.race5 = true; G.block = 'gold'; G.mob = 'robo'; G.raceSecs = 300; }
   if (mode === 'boss') {
-    const b = BOSSES[p.stats.bosses % BOSSES.length];
-    G.mob = b.mob; G.block = b.block; G.hearts = 5;
-    G.bossMax = Math.min(12 + p.stats.bosses * 3, 40); G.bossHp = G.bossMax;
+    const b = nextBoss(p), st = bossStats(bossLevel(p, b));
+    G.boss = b; G.bossSt = st; G.block = b.block; G.mob = b.mob || 'robo'; G.hearts = st.hearts; G.maxHearts = st.hearts;
+    G.bossMax = st.hp; G.bossHp = G.bossMax; G.bossSecs = st.secs;
+    p.bossRecent = [b.id, ...(p.bossRecent || []).filter(x => x !== b.id)].slice(0, 4);
+    p.nextBoss = null; save();   // na dit gevecht (winst of verlies) komt er een andere baas
   }
   setBiome(G.block);
   renderGame();
   if (mode === 'race') {
-    G.endAt = Date.now() + 60000;
+    G.endAt = Date.now() + G.raceSecs * 1000;
     G.timer = setInterval(() => {
-      const left = Math.max(0, G.endAt - Date.now());
-      const bar = $('#raceBar'); if (bar) { bar.style.width = (left / 600) + '%'; $('#raceTxt').textContent = Math.ceil(left / 1000) + ' sec · ' + G.score + ' goed'; }
+      const left = Math.max(0, G.endAt - Date.now()), s = Math.ceil(left / 1000);
+      const bar = $('#raceBar'); if (bar) { bar.style.width = (left / G.raceSecs / 10) + '%'; $('#raceTxt').textContent = (G.raceSecs > 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + ' sec') + ' · ' + G.score + ' goed'; }
       if (left <= 0) finishRound();
     }, 200);
   }
@@ -384,11 +427,12 @@ function renderGame() {
   const mine = `<div class="mine-wrap"><div class="mine-block" id="mineBlock">${img(PX.block(G.block), 'base')}${img(PX.crack(0), '', 'id="crackImg"')}</div>
       ${img(PX.mob(G.mob), 'guard mob', 'id="guard"')}${img(PX.pickaxe(p.pick), 'pickaxe-swing', 'id="pickImg"')}</div>`;
   if (isRound()) { top = `<div class="progress" id="progress"></div>`; right = mine; }
-  else if (G.mode === 'race') { top = `<div class="timerbar" style="flex:1;min-width:200px"><div id="raceBar" style="width:100%"></div><span id="raceTxt">60 sec</span></div>`; right = mine; }
+  else if (G.mode === 'race') { top = `<div class="timerbar" style="flex:1;min-width:200px"><div id="raceBar" style="width:100%"></div><span id="raceTxt">${G.raceSecs > 60 ? '5:00' : '60 sec'}</span></div>`; right = mine; }
   else {
     top = `<div class="hearts" id="hearts"></div>`;
-    right = `<div class="boss-wrap"><div class="boss-name">${PX.MOBS[G.mob].name}</div>
-      ${img(PX.mob(G.mob), 'boss-img mob', 'id="bossImg"')}<div class="hpbar"><div id="hpBar" style="width:100%"></div><span id="hpTxt"></span></div></div>`;
+    top += `<span class="lvchip">${'★'.repeat(G.bossSt.stars)}${'☆'.repeat(5 - G.bossSt.stars)}</span>`;
+    right = `<div class="boss-wrap"><div class="boss-name">${bossName(G.boss)}</div>
+      ${img(bossPic(G.boss), 'boss-img mob', 'id="bossImg"')}<div class="hpbar"><div id="hpBar" style="width:100%"></div><span id="hpTxt"></span></div></div>`;
   }
   const input = p.settings.input === 'choice'
     ? `<div class="choices" id="choices"></div>`
@@ -421,7 +465,7 @@ function updateHUD() {
     st.title = G.streak >= 2 ? G.streak + ' op rij' : '';
     const pl = $('#player'); if (pl) pl.classList.toggle('onfire', G.streak >= 2);
   }
-  const h = $('#hearts'); if (h) h.innerHTML = Array.from({ length: 5 }, (_, i) => img(PX.heart(i < G.hearts))).join('');
+  const h = $('#hearts'); if (h) h.innerHTML = Array.from({ length: G.maxHearts || 5 }, (_, i) => img(PX.heart(i < G.hearts))).join('');
   const hp = $('#hpBar'); if (hp) { hp.style.width = (G.bossHp / G.bossMax * 100) + '%'; $('#hpTxt').textContent = G.bossHp + ' / ' + G.bossMax; }
 }
 
@@ -443,8 +487,31 @@ function choicesFor(q) {
 
 function startSpeedbar() {
   const sp = $('#speed'); if (!sp) return;
+  const secs = G && G.mode === 'boss' && G.bossSecs ? G.bossSecs : 6;
+  sp.classList.toggle('danger', !!(G && G.mode === 'boss' && G.bossSecs));
   sp.style.transition = 'none'; sp.style.width = '100%';
-  requestAnimationFrame(() => requestAnimationFrame(() => { sp.style.transition = 'width 6s linear'; sp.style.width = '0%'; }));
+  requestAnimationFrame(() => requestAnimationFrame(() => { sp.style.transition = `width ${secs}s linear`; sp.style.width = '0%'; }));
+  armBoss();
+}
+// Sterkere bazen vallen aan als je te lang nadenkt.
+function armBoss() {
+  if (!G) return;
+  clearTimeout(G.bossTO);
+  if (G.mode !== 'boss' || !G.bossSecs || G.done) return;
+  const myG = G, q = G.current;
+  G.bossTO = setTimeout(() => {
+    if (G !== myG || G.done || G.current !== q || G.locked) return;
+    G.locked = true;
+    if (q.tries === 0) recordFact(q, false, G.bossSecs);
+    q.tries = 2; G.streak = 0;
+    G.hearts--; SFX.hurt();
+    const gs = $('#gameScreen'); gs.classList.remove('screen-shake'); void gs.offsetWidth; gs.classList.add('screen-shake');
+    document.body.classList.add('flash-red'); setTimeout(() => document.body.classList.remove('flash-red'), 450);
+    const bi = $('#bossImg'); if (bi) floater(bi, 'AANVAL!', '#ffd0c8');
+    updateHUD();
+    if (G.hearts <= 0) { G.answer = String(q.a); showSum('hint'); setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
+    giveUp(q, 'bad', `Te laat! ${q.m} × ${q.t} = ${q.a}`);
+  }, G.bossSecs * 1000);
 }
 
 function nextQ() {
@@ -485,7 +552,7 @@ function markResult(q, val) { if (isRound() && !q.retry && !G.results[q.idx]) G.
 
 function submit(val, btn) {
   if (!G || G.locked || !G.current) return;
-  G.locked = true;
+  G.locked = true; clearTimeout(G.bossTO);
   const q = G.current, dt = (performance.now() - G.qStart) / 1000, ok = val === q.a;
   // alleen de eerste poging telt mee voor de statistieken
   if (q.tries === 0) recordFact(q, ok, dt);
@@ -571,7 +638,7 @@ function onWrong(q, btn) {
     setFeedback(rnd(TRYAGAIN), 'bad');
     setTimeout(() => {
       if (G !== myG || G.current !== q || G.done) return;
-      G.answer = ''; showSum(); G.locked = false;
+      G.answer = ''; showSum(); G.locked = false; startSpeedbar();
     }, T_RETRY);
     return;
   }
@@ -593,7 +660,7 @@ function giveUp(q, mark, text) {
 function useHint() {
   if (!G || G.done || !G.current || G.locked) return;
   const q = G.current;
-  G.locked = true;
+  G.locked = true; clearTimeout(G.bossTO);
   if (q.tries === 0) recordFact(q, false, 0);
   q.hinted = true; G.hints++; G.streak = 0;
   P().stats.hints++;
@@ -606,13 +673,13 @@ function blockColors(type) {
 }
 
 function quitRound() {
-  if (G) { G.done = true; clearInterval(G.timer); }
+  if (G) { G.done = true; clearInterval(G.timer); clearTimeout(G.bossTO); }
   save(); renderHome();
 }
 
 function finishRound(extra = {}) {
   if (!G || G.done) return;
-  G.done = true; clearInterval(G.timer);
+  G.done = true; clearInterval(G.timer); clearTimeout(G.bossTO);
   const p = P(), r = { mode: G.mode, table: G.table, stars: 0, newStars: 0, record: false, perfect: false, win: extra.win, newMob: null };
   p.stats.rounds++;
   const avg = G.times.length ? G.times.reduce((a, b) => a + b, 0) / G.times.length : 0;
@@ -630,14 +697,24 @@ function finishRound(extra = {}) {
     }
   }
   if (G.mode === 'race') {
-    r.score = G.score;
-    if (G.score > p.stats.raceBest) { r.record = p.stats.raceBest > 0; p.stats.raceBest = G.score; if (r.record) G.coins += 20; }
+    r.score = G.score; r.race5 = !!G.race5;
+    const key = G.race5 ? 'race5Best' : 'raceBest';
+    if (G.score > p.stats[key]) { r.record = p.stats[key] > 0; p.stats[key] = G.score; if (r.record) G.coins += G.race5 ? 60 : 20; }
+    if (G.race5) G.coins += Math.floor(G.score / 5);
   }
   if (G.mode === 'boss') {
+    const b = G.boss, st = G.bossSt;
+    r.boss = b;
     if (extra.win) {
-      p.stats.bosses++; G.coins += 50; G.xp += 100; G.ores.diamant = (G.ores.diamant || 0) + 1;
-      if (!p.mobs[G.mob]) { p.mobs[G.mob] = today(); r.newMob = G.mob; }
+      const firstWin = !p.bossWins[b.id];
+      p.bossWins[b.id] = (p.bossWins[b.id] || 0) + 1;
+      p.stats.bosses++; G.coins += 30 + 20 * st.stars; G.xp += 60 + 40 * st.stars; G.ores.diamant = (G.ores.diamant || 0) + 1;
+      if (st.stars >= 4) G.ores.smaragd = (G.ores.smaragd || 0) + 1;
+      r.firstWin = firstWin;
+      if (b.mob && !p.mobs[b.mob]) { p.mobs[b.mob] = today(); r.newMob = b.mob; }
     } else G.coins += 5;
+    p.nextBoss = chooseBoss(p);
+    r.next = bossById(p.nextBoss);
   }
   r.coins = G.coins; r.xp = G.xp; r.ores = { ...G.ores }; r.correct = G.firstCorrect; r.total = G.mainTotal; r.best = G.best; r.hints = G.hints;
   p.coins += G.coins;
@@ -657,14 +734,15 @@ function renderResult(r) {
     line = `${r.correct} van de ${r.total} in één keer goed · gemiddeld ${r.avg.toFixed(1)} sec` + (r.hints ? ` · ${r.hints}× hulp` : '');
   } else if (r.mode === 'race') {
     head = r.record ? 'Nieuw record!' : 'Tijd is om!';
-    line = `${r.score} sommen goed in 60 seconden · record: ${p.stats.raceBest}`;
+    line = r.race5 ? `${r.score} sommen goed in 5 minuten · record: ${p.stats.race5Best}` : `${r.score} sommen goed in 60 seconden · record: ${p.stats.raceBest}`;
   } else {
-    head = r.win ? `${PX.MOBS[G.mob].name} verslagen!` : `${PX.MOBS[G.mob].name} won deze keer…`;
-    line = r.win ? 'Je bent een echte held!' : 'Oefen nog wat en probeer het opnieuw!';
+    head = r.win ? `${bossName(r.boss)} verslagen!` : `${bossName(r.boss)} won deze keer…`;
+    line = (r.win ? (r.firstWin ? 'Nieuwe eindbaas verslagen! Je bent een echte held!' : 'Weer gewonnen!') : 'Oefen nog wat en probeer het opnieuw!')
+      + ` <br>Volgende eindbaas: <b>${bossName(r.next)}</b> ${'★'.repeat(bossStats(bossLevel(p, r.next)).stars)}`;
   }
   const idx = WORLDS.findIndex(w => w.t === r.table);
   const next = r.mode === 'tafel' && idx < WORLDS.length - 1 && unlocked(p, idx + 1) ? WORLDS[idx + 1] : null;
-  const top = r.mode === 'boss' ? img(PX.mob(G.mob), 'mob', 'style="width:110px;height:110px"') : `<div class="mine-block" id="resBlock" style="width:100px">${img(PX.block(G.block), 'base')}${img(PX.crack(10))}</div>`;
+  const top = r.mode === 'boss' ? img(bossPic(r.boss), 'mob', 'style="width:110px;height:110px"') : `<div class="mine-block" id="resBlock" style="width:100px">${img(PX.block(G.block), 'base')}${img(PX.crack(10))}</div>`;
   app.innerHTML = `<div class="screen result">
     <div class="card">
       <div id="resTop">${top}</div>
@@ -687,7 +765,7 @@ function renderResult(r) {
       ${next ? `<button class="btn green" data-act="play" data-t="${next.t}">Volgende: tafel ${next.t} ▶</button>` : ''}
     </div>
   </div>`;
-  G.lastMode = r.mode;
+  G.lastMode = r.race5 ? 'race5' : r.mode;
   const rb = $('#resBlock');
   if (rb) setTimeout(() => { if (!rb.isConnected) return; SFX.brk(); burst(rb, blockColors(G.block), 30); rb.style.visibility = 'hidden'; }, 350);
   if (r.mode === 'boss' && r.win) setTimeout(() => { SFX.win(); confetti(80); }, 500);
@@ -701,7 +779,7 @@ function renderResult(r) {
 
 function showLevelUp(lvl) {
   SFX.level(); confetti(90);
-  const unlocks = Object.entries(MODE_UNLOCK).filter(([m, l]) => l === lvl).map(([m]) => ({ mix: 'Mix-mijn', race: 'Tijdrace', boss: 'Eindbaas' })[m]);
+  const unlocks = Object.entries(MODE_UNLOCK).filter(([m, l]) => l === lvl).map(([m]) => ({ mix: 'Mix-mijn', race: 'Tijdrace', race5: 'Tijdrace 5 min', boss: 'Eindbaas' })[m]);
   modal(`<div class="levelup">LEVEL ${lvl}!</div>
     ${avImg(P().avatar, 'big')}
     <div>Je bent nu: <b>${title(lvl)}</b></div>
@@ -719,6 +797,13 @@ function renderMobs() {
         return `<div class="slot item ${got ? 'owned' : 'unknown'}">${img(PX.mob(id), 'mob')}<div class="iname">${got ? PX.MOBS[id].name : '???'}</div><div class="muted small">${got ? 'Gevangen!' : mobWhere(id)}</div></div>`;
       }).join('')}</div>
       <p class="muted small" style="margin:14px 0 0">Haal minstens 1 ster in een wereld om de mob van die wereld te vangen. Reuzen en andere eindbazen vang je door ze te verslaan.</p>
+    </div>
+    <div class="card"><div class="card-head"><h2>Eindbazen</h2><span class="muted">${Object.keys(p.bossWins).length} van de ${BOSSES.length} verslagen</span></div>
+      <div class="grid-items">${BOSSES.map(b => {
+        const w = p.bossWins[b.id], st = bossStats(bossLevel(p, b)).stars;
+        return `<div class="slot item ${w ? 'owned' : 'unknown'}">${img(bossPic(b), 'mob')}<div class="iname">${w ? bossName(b) : '???'}</div><div class="muted small">${'★'.repeat(st)}${w ? ' · ' + w + '× verslagen' : ''}</div></div>`;
+      }).join('')}</div>
+      <p class="muted small" style="margin:14px 0 0">Hoe meer sterren, hoe sterker de baas: meer levens, minder hartjes en minder tijd per som. Versla je een baas nog een keer, dan wordt hij sterker.</p>
     </div></div>`;
 }
 
@@ -811,7 +896,9 @@ function renderStats() {
       <div class="card"><b>${tot ? Math.round(s.correct / tot * 100) : 0}%</b>in één keer goed</div>
       <div class="card"><b>${s.rounds}</b>rondes</div>
       <div class="card"><b>${s.bestStreak}</b>langste reeks</div>
-      <div class="card"><b>${s.raceBest}</b>tijdrace-record</div>
+      <div class="card"><b>${s.raceBest}</b>record 1 min</div>
+      <div class="card"><b>${s.race5Best}</b>record 5 min</div>
+      <div class="card"><b>${Object.keys(p.bossWins).length}/${BOSSES.length}</b>eindbazen verslagen</div>
       <div class="card"><b>${s.hints}</b>keer hulp (?)</div>
     </div>
     <div class="card"><h2 style="margin-bottom:6px">Tafelkaart</h2>
@@ -869,6 +956,7 @@ const ACTIONS = {
   again: () => G && G.lastMode === 'tafel' ? startRound('tafel', G.table) : startRound(G ? G.lastMode : 'mix'),
   mix: () => startRound('mix'),
   race: () => startRound('race'),
+  race5: () => startRound('race5'),
   boss: () => startRound('boss'),
   quit: () => quitRound(),
   hint: () => useHint(),

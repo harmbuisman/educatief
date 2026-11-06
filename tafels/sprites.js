@@ -277,6 +277,68 @@ const PX = (() => {
   };
   const mob = id => { const m = MOBS[id]; if (!m) return ''; return m.golem !== undefined ? boss(m.golem) : fromMap('mob_' + id, m.rows, m.pal); };
 
+
+  // ---------- EXTRA EINDBAZEN: vormen x kleuren ----------
+  // b = lijf, B = schaduw, e = ogen, a = accent, k = zwart, w = wit, s = huid
+  const BOSS_SHAPES = {
+    golem: ['..bbbbbbbb..', '.bBbbbbbbBb.', 'bbbbbbbbbbbb', 'bbkkbbbbkkbb', 'bbkebbbbekbb', 'bbbbbbbbbbbb',
+      'bBbbbbbbbbBb', 'bbkkkkkkkkbb', 'bbkwkwwkwkbb', 'bbbbbbbbbbbb', '.bBbbbbbbBb.', '..bb....bb..'],
+    slijm: ['....a.aa.a....', '....aaaaaa....', '...bbbbbbbb...', '..bbbbbbbbbb..', '.bbwkbbbbwkbb.', '.bbkkbbbbkkbb.',
+      'bbbbbbbbbbbbbb', 'bbbbbkkkkbbbbb', 'bbbbbbeebbbbbb', 'BbbbbbbbbbbbbB', 'BBbbbbbbbbbbBB', '.BBBBBBBBBBBB.'],
+    spin: ['k............k', '.k..bbbbbb..k.', '..kbbbbbbbbk..', 'kk.bbebbebb.kk', '..kbBbbbbBbk..', '.k.bbbbbbbb.k.',
+      'k..bbBbbBbb..k', '..k.bbbbbb.k..', '.k...w..w...k.', 'k............k'],
+    draak: ['.a..........a.', '.aa........aa.', '..bbbbbbbbbb..', '.bbbbbbbbbbbb.', '.bbebbbbbbebb.', '.bbkbbbbbbkbb.',
+      '.bbbbbbbbbbbb.', 'bbbbbbbbbbbbbb', 'bBkbbbbbbbbkBb', 'bbbbbbbbbbbbbb', 'BBwBwBwwBwBwBB', '.BBBBBBBBBBBB.'],
+    cycloop: ['.....aaaa.....', '...bbbbbbbb...', '..bbbbbbbbbb..', '.bbbbwwwwbbbb.', '.bbbwwkkwwbbb.', '.bbbwwkkwwbbb.',
+      '.bbbbwwwwbbbb.', '.bbbbbbbbbbbb.', '.bbbkkkkkkbbb.', '.bbbkwkkwkbbb.', '..bbbbbbbbbb..', '..BBB....BBB..'],
+    kraken: ['....bbbbbb....', '..bbbbbbbbbb..', '.bbbbbbbbbbbb.', '.bbbaabbaabbb.', '.bwwbbbbbbwwb.', '.bwebbbbbbweb.',
+      '.bbbbbbbbbbbb.', '..bbbbkkbbbb..', '..bbbbbbbbbb..', '.bb.bb..bb.bb.', 'b..b..bb..b..b', 'b..b.b..b.b..b', '.B..B....B..B.'],
+    ridder: ['......aa......', '.....aaaa.....', '...bbbbbbbb...', '..bbbbbbbbbb..', '..bBBBBBBBBb..', '..bkkkkkkkkb..',
+      '..bkekkkkekb..', '..bkkkkkkkkb..', '..bBBBBBBBBb..', '..bbbBbbBbbb..', '..bbbBbbBbbb..', '...bbbbbbbb...', '.BBBBBBBBBBBB.'],
+    tovenaar: ['.......a......', '......aaa.....', '.....aaaaa....', '....aawaaaa...', '...aaaaaaaaa..', '.aaaaaaaaaaaa.',
+      '...ssssssss...', '...sesssses...', '...ssssssss...', '..wwwwwwwwww..', '..wwwwwwwwww..', '.bbwwwwwwwwbb.', '.bbbwwwwwwbbb.', '.bbbbbwwbbbbb.']
+  };
+  const C = (b, B, e, a, extra = {}) => ({ b, B, e, a, ...extra });
+  const BIGBOSSES = [
+    { id: 'slijmkoning', name: 'Slijmkoning', shape: 'slijm', c: C('#5cc22c', '#3a8a1a', '#2b5a12', '#ffd23b') },
+    { id: 'grotspin', name: 'Grotspin', shape: 'spin', c: C('#6b4b32', '#4a321f', '#ff3b2f', '#ffd23b') },
+    { id: 'moerascycloop', name: 'Moerascycloop', shape: 'cycloop', c: C('#6f9a3a', '#4c6e24', '#ff3b2f', '#8a5a2a') },
+    { id: 'inktvis', name: 'Paarse Inktvis', shape: 'kraken', c: C('#9a5ad8', '#6a3aa0', '#2b2b3a', '#f07ab0') },
+    { id: 'bosdraak', name: 'Bosdraak', shape: 'draak', c: C('#3fae49', '#24802c', '#ffd23b', '#a8e070') },
+    { id: 'ijzerridder', name: 'IJzeren Ridder', shape: 'ridder', c: C('#b8c2cc', '#7f8a96', '#ff3b2f', '#e0263a') },
+    { id: 'sneeuwtovenaar', name: 'Sneeuwtovenaar', shape: 'tovenaar', c: C('#3a7bd5', '#244f8f', '#4fe3dc', '#6aa8ff', { s: '#f6d2b4', w: '#f4f8fb' }) },
+    { id: 'koperreus', name: 'Koperreus', shape: 'golem', c: C('#c87a3a', '#8a4f1e', '#4fe3dc', '#000') },
+    { id: 'ijsslijm', name: 'IJsslijm', shape: 'slijm', c: C('#9cc4f5', '#6f9fd8', '#244f8f', '#e4f1ff') },
+    { id: 'gifspin', name: 'Gifspin', shape: 'spin', c: C('#3fae49', '#24602c', '#ffd23b', '#000') },
+    { id: 'ijscycloop', name: 'IJscycloop', shape: 'cycloop', c: C('#a9d2ff', '#6f9fd8', '#2040ff', '#e4f1ff') },
+    { id: 'rodekraken', name: 'Rode Kraken', shape: 'kraken', c: C('#e0453a', '#a02a20', '#ffd23b', '#ffb3a8') },
+    { id: 'vuurdraak', name: 'Vuurdraak', shape: 'draak', c: C('#e0453a', '#9e2219', '#ffd23b', '#ff9a1c') },
+    { id: 'goudridder', name: 'Gouden Ridder', shape: 'ridder', c: C('#f6d32b', '#c49a10', '#3a7bd5', '#3a7bd5') },
+    { id: 'giftovenaar', name: 'Giftovenaar', shape: 'tovenaar', c: C('#3fae49', '#24802c', '#d8ff4a', '#2c6b2c', { s: '#c9e0a0', w: '#d8d8d8' }) },
+    { id: 'smaragdreus', name: 'Smaragdreus', shape: 'golem', c: C('#17b85a', '#0e7a3a', '#ffffff', '#000') },
+    { id: 'toverslijm', name: 'Toverslijm', shape: 'slijm', c: C('#c06ae0', '#8a3aa8', '#4a1a6a', '#4fe3dc') },
+    { id: 'lavaspin', name: 'Lavaspin', shape: 'spin', c: C('#2c1a1a', '#140a0a', '#ff9a1c', '#000', { k: '#f06a12', w: '#ffd34d' }) },
+    { id: 'nachtcycloop', name: 'Nachtcycloop', shape: 'cycloop', c: C('#4a2a7a', '#2c1a42', '#ffd23b', '#b47bff') },
+    { id: 'diepzeekraken', name: 'Diepzeekraken', shape: 'kraken', c: C('#1d3a5a', '#10243a', '#4fe3dc', '#4fe3dc') },
+    { id: 'schaduwdraak', name: 'Schaduwdraak', shape: 'draak', c: C('#2c1a42', '#140a20', '#ff3b2f', '#7a00ff') },
+    { id: 'zwarteridder', name: 'Zwarte Ridder', shape: 'ridder', c: C('#3a3a46', '#1d1d24', '#ff3b2f', '#e0263a') },
+    { id: 'vuurtovenaar', name: 'Vuurtovenaar', shape: 'tovenaar', c: C('#e0453a', '#9e2219', '#ffd23b', '#f06a12', { s: '#f6d2b4', w: '#ffd34d' }) },
+    { id: 'kristalreus', name: 'Kristalreus', shape: 'golem', c: C('#5fe0dc', '#2e8fa0', '#ffffff', '#000') },
+    { id: 'goudslijm', name: 'Goudslijm', shape: 'slijm', c: C('#f6d32b', '#c49a10', '#6a4a00', '#e0263a') },
+    { id: 'spookspin', name: 'Spookspin', shape: 'spin', c: C('#e8eef5', '#9aa8b8', '#7a00ff', '#000', { k: '#c9d2e6' }) },
+    { id: 'vuurcycloop', name: 'Vuurcycloop', shape: 'cycloop', c: C('#d84a0e', '#8a2a08', '#ffd23b', '#ffd34d') },
+    { id: 'diamantdraak', name: 'Diamantdraak', shape: 'draak', c: C('#5fe0dc', '#2e8fa0', '#7a00ff', '#ffffff') },
+    { id: 'diamantridder', name: 'Diamanten Ridder', shape: 'ridder', c: C('#4fe3dc', '#2e9fa0', '#ffffff', '#7a00ff') },
+    { id: 'oertovenaar', name: 'Oertovenaar', shape: 'tovenaar', c: C('#2c1a42', '#140a20', '#2cffd0', '#7a00ff', { s: '#b8aaa0', w: '#e8e8e8' }) },
+    { id: 'obsidiaanreus', name: 'Obsidiaanreus', shape: 'golem', c: C('#1b1027', '#0a0612', '#ff2cd0', '#000', { k: '#5a3a86', w: '#ff2cd0' }) },
+    { id: 'oerdraak', name: 'Oerdraak', shape: 'draak', c: C('#f6d32b', '#1d1d24', '#e0263a', '#e0263a') }
+  ];
+  function bigboss(id) {
+    const b = BIGBOSSES.find(x => x.id === id); if (!b) return '';
+    const c = b.c;
+    return fromMap('bb_' + id, BOSS_SHAPES[b.shape], { b: c.b, B: c.B, e: c.e, a: c.a, k: c.k || '#141414', w: c.w || '#f2f2f2', s: c.s || '#f6d2b4' });
+  }
+
   // ---------- HUISDIEREN ----------
   const PETS = {
     kuiken: { name: 'Kuikentje', price: 100, rows: ['..........', '...yyyy...', '..yyyyyy..', '..ykyyky..', '..yyooyy..', '.yyyyyyyy.', 'yYyyyyyyYy', '.yyyyyyyy.', '..yyyyyy..', '...o..o...'], pal: { y: '#ffe14d', Y: '#e6b800', k: '#222', o: '#ff8c1a' } },
@@ -341,5 +403,5 @@ const PX = (() => {
     });
   }
 
-  return { mob, MOBS, block, crack, pickaxe, sword, ore, heart, coin, star, flame, chest, trophy, clock, book, gear, lock, boss, BOSS_THEMES, pet, PETS, avatar, AV, ORE_COLORS, shade };
+  return { mob, MOBS, block, crack, pickaxe, sword, ore, heart, coin, star, flame, chest, trophy, clock, book, gear, lock, boss, BOSS_THEMES, bigboss, BIGBOSSES, pet, PETS, avatar, AV, ORE_COLORS, shade };
 })();

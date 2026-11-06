@@ -348,3 +348,10 @@ input.name:focus { outline: none; border-color: var(--blue); }
   .screen.game .mine-block { width: clamp(70px, 14vh, 120px); }
   .screen.game .boss-img { width: clamp(80px, 16vh, 140px); height: clamp(80px, 16vh, 140px); }
 }
+
+/* eindbazen en 5-minutenrace */
+img.px { object-fit: contain; }
+.speedbar > div.danger { background: linear-gradient(90deg, var(--red), #ff9a1c); }
+.lvchip { font-weight: 900; font-size: 14px; background: #fff; color: var(--purple); padding: 6px 12px; border-radius: 99px; white-space: nowrap; }
+.game-top .lvchip { margin-left: auto; }
+.game-top .hearts + .lvchip { color: var(--red); }
