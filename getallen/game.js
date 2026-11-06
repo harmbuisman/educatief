@@ -55,6 +55,15 @@ const TRYAGAIN = ['Probeer nog eens!', 'Bijna! Nog een keer.', 'Oeps, kijk nog e
 const MODE_UNLOCK = { mix: 1, race: 2, boss: 3 };
 const T_CORRECT = 750, T_GIVEUP = 1500, T_RETRY = 650;
 const SPLIT_WORLDS = WORLDS.filter(w => w.kind !== 'num').map(w => w.id);
+// Splitswerelden hebben 3 niveaus: de telhulp verdwijnt stap voor stap.
+const NIVEAUS = { 1: 'Met telblokjes', 2: 'Halve hulp', 3: 'Uit je hoofd' };
+const maxLv = w => w.kind === 'num' ? 1 : 3;
+function getStars(p, wid, n = 1) { return n === 1 ? (p.stars[wid] || 0) : ((p.nstars[wid] || {})[n] || 0); }
+function setStars(p, wid, n, s) { if (n === 1) p.stars[wid] = s; else (p.nstars[wid] = p.nstars[wid] || {})[n] = s; }
+function lvOpen(p, w, n) { return n === 1 || (n <= maxLv(w) && (p.settings.unlockAll || getStars(p, w.id, n - 1) >= 2)); }
+function topLv(p, w) { let n = 1; while (n < maxLv(w) && lvOpen(p, w, n + 1)) n++; return n; }
+function totalStars(p) { return WORLDS.reduce((s, w) => { for (let n = 1; n <= maxLv(w); n++) s += getStars(p, w.id, n); return s; }, 0); }
+const MAX_STARS = WORLDS.reduce((s, w) => s + 3 * maxLv(w), 0);
 const NUM_WORLDS = WORLDS.filter(w => w.kind === 'num').map(w => w.id);
 
 const ACH = [
@@ -64,7 +73,8 @@ const ACH = [
   { id: 'reeks25', name: 'Niet te stoppen', desc: '25 goed op rij', icon: () => PX.flame(), test: p => p.stats.bestStreak >= 25 },
   { id: 'bliksem', name: 'Bliksemsnel', desc: 'Goed antwoord binnen 2 seconden', icon: () => PX.mob('wolkje'), test: (p, c) => c && c.fastest < 2 },
   { id: 'ster3', name: 'Sterrenjager', desc: '3 sterren in een wereld', icon: () => PX.star(), test: p => Object.values(p.stars).some(s => s >= 3) },
-  { id: 'splits', name: 'Splitsmeester', desc: '3 sterren in alle splitswerelden', icon: () => PX.block('ore_goud'), test: p => SPLIT_WORLDS.every(id => (p.stars[id] || 0) >= 3) },
+  { id: 'uithoofd', name: 'Uit je hoofd', desc: 'Haal een ster op niveau 3 (zonder blokjes)', icon: () => PX.block('ore_smaragd'), test: p => SPLIT_WORLDS.some(id => getStars(p, id, 3) >= 1) },
+  { id: 'splits', name: 'Splitsmeester', desc: '3 sterren op niveau 3 in alle splitswerelden', icon: () => PX.block('ore_goud'), test: p => SPLIT_WORLDS.every(id => getStars(p, id, 3) >= 3) },
   { id: 'lijn', name: 'Getallenheld', desc: '3 sterren in alle getallenwerelden', icon: () => PX.block('ore_diamant'), test: p => NUM_WORLDS.every(id => (p.stars[id] || 0) >= 3) },
   { id: 'alle1', name: 'Wereldreiziger', desc: 'Minstens 1 ster in alle werelden', icon: () => PX.block('grass', 2), test: p => WORLDS.every(w => (p.stars[w.id] || 0) >= 1) },
   { id: 'mob1', name: 'Eerste vangst', desc: 'Vang je eerste mob', icon: () => PX.mob('paddo'), test: p => Object.keys(p.mobs).length >= 1 },
@@ -94,10 +104,10 @@ function newProfile(name, avatar) {
     xp: 0, level: 1, coins: 0, pick: 0,
     ores: { kolen: 0, ijzer: 0, goud: 0, robijn: 0, diamant: 0, smaragd: 0 },
     found: { kolen: 0, ijzer: 0, goud: 0, robijn: 0, diamant: 0, smaragd: 0 },
-    stars: {}, facts: {}, wstats: {}, ach: {}, mobs: {},
+    stars: {}, nstars: {}, facts: {}, wstats: {}, ach: {}, mobs: {},
     owned: { hats: ['geen'], pets: [] }, pet: null,
     stats: { rounds: 0, correct: 0, wrong: 0, hints: 0, bosses: 0, bestStreak: 0, raceBest: 0 },
-    settings: { input: 'keypad', unlockAll: false, dots: true }
+    settings: { input: 'keypad', unlockAll: false, dots: 'auto' }
   };
 }
 function fillDefaults(obj, tpl) {
@@ -109,7 +119,10 @@ function fillDefaults(obj, tpl) {
 function load() {
   try { DB = JSON.parse(localStorage.getItem(SAVE)); } catch (e) { DB = null; }
   if (!DB || !Array.isArray(DB.profiles)) DB = { profiles: [], current: null, sound: true };
-  DB.profiles.forEach(p => fillDefaults(p, newProfile(p.name, p.avatar)));
+  DB.profiles.forEach(p => {
+    fillDefaults(p, newProfile(p.name, p.avatar));
+    if (typeof p.settings.dots === 'boolean') p.settings.dots = p.settings.dots ? 'auto' : 'off';
+  });
 }
 function save() { try { localStorage.setItem(SAVE, JSON.stringify(DB)); } catch (e) { } }
 const P = () => DB.profiles.find(p => p.id === DB.current);
@@ -281,12 +294,12 @@ function genNum(w, type) {
   return { type: 'compare', x, y, which, a: which === 'grootst' ? Math.max(x, y) : Math.min(x, y), key: 'c:' + w.id, input: 'pick' };
 }
 const NUM_MIX = ['lineRead', 'lineRead', 'lineRead', 'lineTap', 'lineTap', 'lineTap', 'order', 'neigh', 'neigh', 'compare'];
-function genFor(w, type, raceOnly) {
+function genFor(w, type, raceOnly, lvl) {
   let q;
   if (w.kind === 'split') q = genSplit(w);
   else if (w.kind === 'split20') q = genSplit20();
   else q = genNum(w, type || rnd(raceOnly ? ['lineRead', 'neigh', 'neigh'] : NUM_MIX));
-  q.wid = w.id; q.tries = 0; q.retry = false;
+  q.wid = w.id; q.tries = 0; q.retry = false; q.lvl = lvl || topLv(P(), w);
   return q;
 }
 
@@ -303,7 +316,7 @@ function topbar(back) {
     </div></div>
     <div class="counters">
       <div class="counter" title="Munten">${img(PX.coin())}<span>${p.coins}</span></div>
-      <div class="counter" title="Sterren">${img(PX.star())}${Object.values(p.stars).reduce((a, b) => a + b, 0)}/30</div>
+      <div class="counter" title="Sterren">${img(PX.star())}${totalStars(p)}/${MAX_STARS}</div>
       <div class="counter" title="Mobs gevangen">${img(PX.mob('paddo'))}${Object.keys(p.mobs).length}/${MOB_IDS.length}</div>
     </div>
   </div>`;
@@ -382,12 +395,15 @@ function renderHome() {
       <h2 style="margin-bottom:14px">Kies een wereld</h2>
       <div class="worlds">
         ${WORLDS.map((w, i) => {
-          const open = unlocked(p, i), st = p.stars[w.id] || 0;
+          const open = unlocked(p, i), st = getStars(p, w.id, 1);
           return `<div class="world ${open ? '' : 'locked'}" data-act="${open ? 'play' : 'lockedWorld'}" data-w="${w.id}">
-            ${open && st === 0 ? '<span class="badge">NIEUW</span>' : ''}
+            ${open && getStars(p, w.id, 1) === 0 ? '<span class="badge">NIEUW</span>' : ''}
             <div class="blkwrap">${img(PX.block(w.block), 'blk')}${img(PX.mob(w.mob), 'guard mob')}${open ? '' : img(PX.lock(), 'lockicon')}</div>
             <div class="tnum">${w.name}</div><div class="wname">${w.sub}</div>
-            <div class="stars">${[1, 2, 3].map(s => img(PX.star(st >= s))).join('')}</div>
+            ${maxLv(w) === 1 ? `<div class="stars">${[1, 2, 3].map(s => img(PX.star(st >= s))).join('')}</div>`
+              : `<div class="lvstars">${[1, 2, 3].map(n => lvOpen(p, w, n)
+                  ? `<span title="Niveau ${n}: ${NIVEAUS[n]}"><b>${n}</b>${[1, 2, 3].map(s => img(PX.star(getStars(p, w.id, n) >= s))).join('')}</span>`
+                  : `<span class="lk" title="Niveau ${n}: haal eerst 2 sterren op niveau ${n - 1}"><b>${n}</b>${img(PX.lock())}</span>`).join('')}</div>`}
           </div>`;
         }).join('')}
       </div>
@@ -414,7 +430,7 @@ function renderHome() {
 let G = null;
 const isRound = () => G && (G.mode === 'world' || G.mode === 'mix');
 
-function startRound(mode, wid) {
+function startRound(mode, wid, lvl) {
   const p = P();
   if (!p) return renderProfiles();
   const open = unlockedWorlds(p);
@@ -422,8 +438,9 @@ function startRound(mode, wid) {
     firstCorrect: 0, hints: 0, answer: '', locked: true, crack: 0, score: 0, retryCount: 0, done: false, lastKey: null };
   if (mode === 'world') {
     const w = W(wid);
+    G.lvl = Math.min(lvl || 1, maxLv(w));
     const types = w.kind === 'num' ? shuffle(NUM_MIX) : Array(10).fill(null);
-    types.forEach((t, i) => { const q = genFor(w, t); q.idx = i; G.lastKey = q.key; G.queue.push(q); });
+    types.forEach((t, i) => { const q = genFor(w, t, false, G.lvl); q.idx = i; G.lastKey = q.key; G.queue.push(q); });
     G.block = w.block; G.mob = w.mob;
   }
   if (mode === 'mix') {
@@ -456,7 +473,11 @@ function renderGame() {
   let top = '', right = '';
   const mine = `<div class="mine-wrap"><div class="mine-block" id="mineBlock">${img(PX.block(G.block), 'base')}${img(PX.crack(0), '', 'id="crackImg"')}</div>
       ${img(PX.mob(G.mob), 'guard mob', 'id="guard"')}${img(PX.pickaxe(p.pick), 'pickaxe-swing', 'id="pickImg"')}</div>`;
-  if (isRound()) { top = `<div class="progress" id="progress"></div>`; right = mine; }
+  if (isRound()) {
+    const w = G.mode === 'world' ? W(G.wid) : null;
+    top = (w && maxLv(w) > 1 ? `<span class="lvchip">Niveau ${G.lvl} · ${NIVEAUS[G.lvl]}</span>` : '') + `<div class="progress" id="progress"></div>`;
+    right = mine;
+  }
   else if (G.mode === 'race') { top = `<div class="timerbar" style="flex:1;min-width:200px"><div id="raceBar" style="width:100%"></div><span id="raceTxt">60 sec</span></div>`; right = mine; }
   else {
     top = `<div class="hearts" id="hearts"></div>`;
@@ -516,7 +537,9 @@ function drawQ(state) {
   const q = G.current, el = $('#qbody'), qq = $('#question');
   if (!el) return;
   qq.className = 'card question' + (state ? ' ' + state : '');
-  const showDots = P().settings.dots;
+  // Telhulp: niveau 1 blokjes + lege vakjes, niveau 2 alleen blokjes van het bekende deel, niveau 3 niets.
+  const ds = P().settings.dots, help = ds === 'on' ? 1 : ds === 'off' ? 3 : (q.lvl || 1);
+  const showDots = help < 3, showGhosts = help === 1;
   const A = PX.block('gold'), B = PX.block('diamond');
   let h = '';
   if (q.type === 'split') {
@@ -524,16 +547,21 @@ function drawQ(state) {
       const known = box(q.known);
       h = `<div class="qtext">Splits ${q.n}</div><div class="split"><div class="top">${box(q.n)}</div>${LEGS}
         <div class="bottom">${q.leftKnown ? known + ansBox() : ansBox() + known}</div></div>`;
-      if (showDots) h += `<div class="dots">${q.leftKnown ? blockDots(q.known, A) + '<span class="gap"></span>' + ghosts(q.n - q.known) : ghosts(q.n - q.known) + '<span class="gap"></span>' + blockDots(q.known, A)}</div>`;
+      const gh = showGhosts ? ghosts(q.n - q.known) : '';
+      if (showDots && (q.known > 0 || gh)) h += `<div class="dots">${q.leftKnown ? blockDots(q.known, A) + '<span class="gap"></span>' + gh : gh + '<span class="gap"></span>' + blockDots(q.known, A)}</div>`;
     } else {
       h = `<div class="qtext">Hoeveel samen?</div><div class="split"><div class="top">${ansBox()}</div>${LEGS}<div class="bottom">${box(q.p1)}${box(q.p2)}</div></div>`;
-      if (showDots) h += `<div class="dots">${blockDots(q.p1, A)}<span class="gap"></span>${blockDots(q.p2, B)}</div>`;
+      if (showGhosts) h += `<div class="dots">${blockDots(q.p1, A)}<span class="gap"></span>${blockDots(q.p2, B)}</div>`;
     }
   } else if (q.type === 'split20') {
     const top = q.v === 'whole' ? ansBox() : box(q.n);
     const left = q.v === 'ones' ? ansBox() : box(10), right = q.v === 'ten' ? ansBox() : box(q.e);
     h = `<div class="qtext">${q.v === 'whole' ? 'Hoeveel samen?' : `Splits ${q.n}`}</div><div class="split"><div class="top">${top}</div>${LEGS}<div class="bottom">${left}${right}</div></div>`;
-    if (showDots) h += `<div class="dots"><span class="bar10">${blockDots(10, A)}</span><span class="gap"></span>${q.v === 'ten' ? ghosts(q.e) : blockDots(q.e, B)}</div>`;
+    if (showDots) {
+      const left = q.v === 'ones' && !showGhosts ? '' : `<span class="bar10">${blockDots(10, A)}</span>`;
+      const right = q.v === 'ten' ? (showGhosts ? ghosts(q.e) : '') : blockDots(q.e, B);
+      if (q.v !== 'whole' || showGhosts) h += `<div class="dots">${left}<span class="gap"></span>${right}</div>`;
+    }
   } else if (q.type === 'lineRead') {
     h = `<div class="qtext">Welk getal hoort bij de pijl?</div>${nline(q, { arrow: q.a })}<div class="row-boxes">${ansBox()}</div>`;
   } else if (q.type === 'lineTap') {
@@ -542,7 +570,7 @@ function drawQ(state) {
     const blk = W(q.wid).block;
     h = `<div class="qtext">Zet op volgorde</div><div class="arrowhint">${q.dir === 'up' ? 'van klein → naar groot' : 'van groot → naar klein'}</div>
       <div class="slots">${q.a.map((_, i) => `<div class="slot-box">${q.placed[i] != null ? nblock(q.placed[i], blk) : ''}</div>`).join('')}</div>
-      <div class="pool">${q.nums.map((v, i) => nblock(v, blk, `data-onum="${i}"`, q.used && q.used[i] ? 'used' : '')).join('')}</div>`;
+      <div class="pool">${q.nums.map((v, i) => nblock(v, blk, `data-onum="${i}"`, q.used && q.used[i] ? 'used' : (q.helpNext && v === q.a[q.placed.length] ? 'nexthint' : ''))).join('')}</div>`;
   } else if (q.type === 'neigh') {
     const t = { na: `Welk getal komt ná ${q.n}?`, voor: `Welk getal komt vóór ${q.n}?`, tussen: 'Welk getal zit ertussen?' }[q.kind];
     const row = q.kind === 'na' ? box(q.n) + ansBox() : q.kind === 'voor' ? ansBox() + box(q.n) : box(q.n - 1) + ansBox() + box(q.n + 1);
@@ -718,6 +746,13 @@ function onWrong(q) {
     updateHUD();
     if (G.hearts <= 0) { setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
   }
+  // Volgorde: 3 keer zelf proberen, daarna alleen het volgende blok laten oplichten (nooit alles voorzeggen).
+  if (q.type === 'order') {
+    if (q.tries >= 3 && !q.helpNext) { helpOrder(q); setFeedback('Kijk, dit blok is de volgende!', 'info'); }
+    else setFeedback(q.helpNext ? 'Tik op het blok dat oplicht.' : rnd(TRYAGAIN), 'bad');
+    setTimeout(() => { if (G !== myG || G.current !== q || G.done) return; drawQ(); G.locked = false; }, T_RETRY);
+    return;
+  }
   // Eén extra poging (in de tijdrace onbeperkt). Pas daarna het antwoord.
   if (G.mode === 'race' || q.tries < 2) {
     setFeedback(rnd(TRYAGAIN), 'bad');
@@ -729,6 +764,13 @@ function onWrong(q) {
     return;
   }
   giveUp(q, 'bad', 'Kijk, zo is het goed!');
+}
+
+function helpOrder(q) {
+  q.helpNext = true;
+  markResult(q, 'bad');
+  if (isRound() && G.retryCount < 5) { G.retries.push({ ...q, retry: true, tries: 0, placed: [], used: [], helpNext: false }); G.retryCount++; }
+  updateHUD();
 }
 
 function giveUp(q, mark, text) {
@@ -752,6 +794,14 @@ function giveUp(q, mark, text) {
 function useHint() {
   if (!G || G.done || !G.current || G.locked) return;
   const q = G.current;
+  if (q.type === 'order') {
+    if (q.helpNext) return;
+    if (q.tries === 0) record(q, false, 0);
+    q.tries = Math.max(q.tries, 1);
+    G.hints++; G.streak = 0; P().stats.hints++;
+    SFX.hint(); helpOrder(q); drawQ(); setFeedback('Dit blok is de volgende. Zet de rest zelf!', 'info');
+    return;
+  }
   G.locked = true;
   if (q.tries === 0) record(q, false, 0);
   G.hints++; G.streak = 0; P().stats.hints++;
@@ -773,12 +823,15 @@ function finishRound(extra = {}) {
   r.avg = avg;
   if (isRound()) {
     const acc = G.firstCorrect / G.mainTotal;
-    r.stars = acc >= 0.9 && avg <= 8 ? 3 : acc >= 0.8 ? 2 : acc >= 0.6 ? 1 : 0;
+    const slow = G.mode === 'world' && W(G.wid).kind !== 'num' ? 10 : 8;   // splitsen is moeilijker: iets meer tijd
+    r.stars = acc >= 0.9 && avg <= slow ? 3 : acc >= 0.8 ? 2 : acc >= 0.6 ? 1 : 0;
     r.perfect = G.firstCorrect === G.mainTotal;
     if (r.perfect) { G.coins += 10; G.xp += 25; }
     if (G.mode === 'world') {
-      const prev = p.stars[G.wid] || 0;
-      if (r.stars > prev) { r.newStars = r.stars - prev; p.stars[G.wid] = r.stars; G.coins += r.newStars * 10; }
+      const w = W(G.wid), prev = getStars(p, G.wid, G.lvl), wasOpen = lvOpen(p, w, G.lvl + 1);
+      r.lvl = G.lvl;
+      if (r.stars > prev) { r.newStars = r.stars - prev; setStars(p, G.wid, G.lvl, r.stars); G.coins += r.newStars * 10; }
+      if (G.lvl < maxLv(w) && !wasOpen && lvOpen(p, w, G.lvl + 1)) r.newLv = G.lvl + 1;
       if (r.stars >= 1 && !p.mobs[G.mob]) { p.mobs[G.mob] = today(); r.newMob = G.mob; }
     }
   }
@@ -825,6 +878,7 @@ function renderResult(r) {
       ${isRound() ? `<div class="bigstars">${[1, 2, 3].map(s => img(PX.star(r.stars >= s))).join('')}</div>` : ''}
       <div class="muted">${line}</div>
       ${r.newStars ? `<div style="color:var(--gold-d)">+${r.newStars} nieuwe ster${r.newStars > 1 ? 'ren' : ''}! (+${r.newStars * 10} munten)</div>` : ''}
+      ${r.newLv ? `<div class="catch">${img(PX.block('ore_smaragd'))}<div style="text-align:left"><span class="muted small">Nieuw niveau vrijgespeeld!</span><b>Niveau ${r.newLv}: ${NIVEAUS[r.newLv]}</b><span class="small">${r.newLv === 2 ? 'Nu zonder lege vakjes om te tellen.' : 'Nu helemaal zonder blokjes!'}</span></div></div>` : ''}
       ${r.newMob ? `<div class="catch">${img(PX.mob(r.newMob), 'mob')}<div style="text-align:left"><span class="muted small">Nieuwe mob gevangen!</span><b>${PX.MOBS[r.newMob].name}</b><span class="small">Bekijk hem in je Mobboek</span></div></div>` : ''}
       ${r.mode === 'world' && r.stars === 0 && !p.mobs[G.mob] ? `<div class="muted small">Haal minstens 1 ster om ${PX.MOBS[G.mob].name} te vangen!</div>` : ''}
       <div class="rewards">
@@ -837,7 +891,7 @@ function renderResult(r) {
     <div class="row">
       <button class="btn light" data-act="home">◀ Kaart</button>
       <button class="btn gold" data-act="again">↻ Nog een keer</button>
-      ${next ? `<button class="btn green" data-act="play" data-w="${next.id}">Volgende: ${next.name} ▶</button>` : ''}
+      ${r.newLv ? `<button class="btn green" data-act="playLv" data-w="${r.wid}" data-n="${r.newLv}">Niveau ${r.newLv} ▶</button>` : next ? `<button class="btn green" data-act="play" data-w="${next.id}">Volgende: ${next.name} ▶</button>` : ''}
     </div>
   </div>`;
   G.lastMode = r.mode;
@@ -991,8 +1045,11 @@ function renderSettings() {
         <span class="chip ${p.settings.input === 'keypad' ? 'sel' : ''}" data-act="setInput" data-v="keypad">Zelf typen</span>
         <span class="chip ${p.settings.input === 'choice' ? 'sel' : ''}" data-act="setInput" data-v="choice">Kiezen uit 4</span></div>
       <p class="muted small" style="margin:0 0 16px">Kiezen uit 4 is makkelijker voor beginners. Bij de getallenlijn en volgorde tik je altijd zelf.</p>
-      <div class="opt-row"><label>Blokjes</label><span class="chip ${p.settings.dots ? 'sel' : ''}" data-act="toggleDots">${p.settings.dots ? 'Telblokjes aan' : 'Telblokjes uit'}</span></div>
-      <p class="muted small" style="margin:0 0 16px">Bij splitsen staan blokjes om te tellen. Zet ze uit als het kind de splitsingen uit het hoofd moet kennen.</p>
+      <div class="opt-row"><label>Blokjes</label>
+        <span class="chip ${p.settings.dots === 'auto' ? 'sel' : ''}" data-act="setDots" data-v="auto">Per niveau</span>
+        <span class="chip ${p.settings.dots === 'on' ? 'sel' : ''}" data-act="setDots" data-v="on">Altijd</span>
+        <span class="chip ${p.settings.dots === 'off' ? 'sel' : ''}" data-act="setDots" data-v="off">Nooit</span></div>
+      <p class="muted small" style="margin:0 0 16px">Bij splitsen helpen telblokjes. "Per niveau": niveau 1 met blokjes en lege vakjes, niveau 2 alleen de blokjes van het getal dat je al weet, niveau 3 zonder blokjes.</p>
       <div class="opt-row"><label>Geluid</label><span class="chip ${DB.sound ? 'sel' : ''}" data-act="toggleSound">${DB.sound ? 'Aan' : 'Uit'}</span></div>
       <div class="opt-row"><label>Werelden</label><span class="chip ${p.settings.unlockAll ? 'sel' : ''}" data-act="toggleUnlock">${p.settings.unlockAll ? 'Alles open' : 'Vrijspelen met sterren'}</span></div>
       <p class="muted small" style="margin:0 0 16px">Voor ouders: zet alle werelden open om direct te oefenen wat er deze week op school is, bijvoorbeeld "Splits 8 en 9".</p>
@@ -1024,8 +1081,20 @@ const ACTIONS = {
     save(); EDIT = null; renderHome();
   },
   home: () => renderHome(),
-  play: d => startRound('world', d.w),
-  again: () => G && G.lastMode === 'world' ? startRound('world', G.wid) : startRound(G ? G.lastMode : 'mix'),
+  play: d => {
+    const p = P(), w = W(d.w);
+    if (maxLv(w) === 1 || topLv(p, w) === 1) return startRound('world', w.id, 1);
+    modal(`<h2>${w.name}</h2><div class="muted">Kies een niveau</div>
+      <div class="lvpick">${[1, 2, 3].map(n => {
+        const open = lvOpen(p, w, n), st = getStars(p, w.id, n);
+        return `<button class="btn ${open ? 'light' : 'light'}" ${open ? `data-act="playLv" data-w="${w.id}" data-n="${n}"` : 'disabled'}>
+          <span style="text-align:left;flex:1">Niveau ${n}<small>${NIVEAUS[n]}${open ? '' : ' · haal 2 sterren op niveau ' + (n - 1)}</small></span>
+          <span class="stars">${open ? [1, 2, 3].map(s => img(PX.star(st >= s))).join('') : img(PX.lock())}</span></button>`;
+      }).join('')}</div>
+      <button class="btn light sm" data-act="closeModal">Annuleer</button>`);
+  },
+  playLv: d => { closeModal(); startRound('world', d.w, +d.n); },
+  again: () => G && G.lastMode === 'world' ? startRound('world', G.wid, G.lvl) : startRound(G ? G.lastMode : 'mix'),
   mix: () => startRound('mix'),
   race: () => startRound('race'),
   boss: () => startRound('boss'),
@@ -1060,7 +1129,7 @@ const ACTIONS = {
   stats: () => renderStats(),
   settings: () => renderSettings(),
   setInput: d => { P().settings.input = d.v; save(); renderSettings(); },
-  toggleDots: () => { const p = P(); p.settings.dots = !p.settings.dots; save(); renderSettings(); },
+  setDots: d => { P().settings.dots = d.v; save(); renderSettings(); },
   toggleSound: () => { DB.sound = !DB.sound; save(); SFX.click(); if ($('#settingsCard')) renderSettings(); else renderProfiles(); },
   toggleUnlock: () => { const p = P(); p.settings.unlockAll = !p.settings.unlockAll; save(); renderSettings(); },
   deletePlayer: () => modal(`<h2>Speler wissen?</h2><div>Alle sterren, munten, mobs en voortgang van <b>${esc(P().name)}</b> verdwijnen voorgoed.</div>

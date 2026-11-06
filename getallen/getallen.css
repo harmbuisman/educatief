@@ -127,3 +127,18 @@
   .slot-box, .nblock { width: clamp(46px, 9vh, 64px); height: clamp(46px, 9vh, 64px); }
   .pick2 .nblock { width: clamp(70px, 15vh, 110px); height: clamp(70px, 15vh, 110px); }
 }
+
+/* niveaus */
+.lvstars { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.lvstars span { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; color: var(--purple); }
+.lvstars span b { width: 14px; text-align: left; }
+.lvstars img { width: 14px; height: 14px; }
+.lvstars .lk { opacity: .5; }
+.lvchip { font-weight: 900; font-size: 14px; background: #fff; color: var(--purple); padding: 6px 12px; border-radius: 99px; }
+.game-top .lvchip { margin-left: auto; }
+.lvpick { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.lvpick .btn { justify-content: space-between; text-align: left; }
+.lvpick .btn small { display: block; font-weight: 700; font-size: 14px; color: var(--muted); }
+.lvpick .stars img { width: 22px; height: 22px; }
+.nblock.nexthint { outline: 5px solid var(--gold); animation: pulse .5s infinite alternate; }
+@media (max-width: 640px) { .game-top .lvchip { display: none; } }
