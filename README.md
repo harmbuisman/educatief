@@ -21,4 +21,19 @@ Oefen de tafels van 1 t/m 10 in een blokkenwereld in pixelstijl.
 
 Alle plaatjes zijn eigen pixel-art die in code wordt getekend. Er zijn geen externe afbeeldingen nodig. De lettertypes (Press Start 2P en Nunito) komen van Google Fonts.
 
+## GetallenMijn – splitsen en de getallenlijn (`/getallen/`)
+
+Voor groep 3. Werkt hetzelfde als TafelMijn: eigen poppetje, sterren, levels, ertsen, mobs, winkel, eindbazen en een voortgangsscherm voor ouders.
+
+- **10 werelden**: Splits t/m 5 → Getallen t/m 10 → Splits 6 en 7 → Getallen t/m 20 → Splits 8 en 9 → Getallen t/m 30 → Splits 10 → Getallen t/m 50 → 10 en nog wat → Getallen t/m 100.
+- **Opdrachten**:
+  - splitsingen (splitsbeen, met telblokjes die je uit kunt zetten)
+  - getal bij de pijl op de getallenlijn
+  - tikken waar een getal op de getallenlijn hoort
+  - getallen op volgorde zetten
+  - buurgetallen (ervoor, erna, ertussen)
+  - het grootste of kleinste getal kiezen
+- **Voortgang**: per wereld het percentage goed, en een overzicht van alle splitsingen t/m 10 en van 10 en nog wat.
+- Met "Alles open" in de instellingen kun je meteen oefenen wat deze week op school aan bod komt.
+
 Op de iPad: open de site in Safari en kies *Deel → Zet op beginscherm*.

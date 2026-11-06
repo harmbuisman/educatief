@@ -1,0 +1,93 @@
+/* GetallenMijn – extra onderdelen bovenop ../tafels/style.css */
+
+.world .tnum { font-size: 17px; line-height: 1.15; }
+.qtext { font-weight: 900; font-size: clamp(17px, 2.6vw, 22px); margin-bottom: 10px; }
+.qtext .big { font-family: var(--pixel); font-size: 1.3em; color: var(--blue); }
+
+/* antwoordvakje (zelfde look als bij TafelMijn) */
+.box { display: inline-flex; align-items: center; justify-content: center; min-width: 2.2ch; padding: .12em .3em; font-family: var(--pixel);
+  font-size: clamp(22px, 4.6vw, 40px); background: #f3f5f8; border: 3px solid #d6dde5; border-radius: var(--r); color: var(--ink); line-height: 1.15; }
+.box.ans { color: var(--blue); }
+.box.ans.empty { color: #b9c2cc; }
+.question.wrong .box.ans { background: #ffe5e2; border-color: var(--red); color: var(--red); animation: shake .4s; }
+.question.right .box.ans { background: #e3f6dc; border-color: var(--green); color: var(--green-d); }
+.question.hint .box.ans { background: #fff3d6; border-color: var(--gold); color: var(--gold-d); }
+
+/* splitsing: getal bovenaan, twee benen naar beneden */
+.split { display: inline-flex; flex-direction: column; align-items: center; }
+.split .legs { width: 150px; height: 34px; display: block; }
+.split .legs line { stroke: #9aa5b1; stroke-width: 5; stroke-linecap: round; }
+.split .bottom { display: flex; gap: 42px; }
+.split .top .box { background: #fff7dc; border-color: #f2cf6b; }
+.plus { font-family: var(--pixel); font-size: clamp(20px, 4vw, 34px); color: var(--muted); margin: 0 .3em; }
+
+/* blokjes als telhulp */
+.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 12px; max-width: 420px; margin-left: auto; margin-right: auto; }
+.dots img, .dots .ghost { width: 26px; height: 26px; border-radius: 2px; }
+.dots .ghost { border: 3px dashed #c3ccd6; background: transparent; box-sizing: border-box; }
+.dots .gap { width: 10px; }
+.bar10 { display: inline-flex; gap: 1px; padding: 3px; background: #8a96a3; border-radius: 3px; }
+.bar10 img { width: 20px; height: 20px; }
+
+/* getallenlijn */
+.nline { position: relative; height: 96px; margin: 6px 4px 4px; }
+.nline .axis { position: absolute; left: 3%; right: 3%; top: 46px; height: 5px; background: var(--ink); border-radius: 3px; }
+.nline .tick { position: absolute; top: 38px; width: 3px; height: 21px; background: var(--ink); transform: translateX(-50%); border-radius: 2px; }
+.nline .tick.small { top: 42px; height: 13px; width: 2px; background: #6b7785; }
+.nline .lab { position: absolute; top: 62px; transform: translateX(-50%); font-weight: 900; font-size: clamp(13px, 2.2vw, 18px); }
+.nline .arrow { position: absolute; top: 0; transform: translateX(-50%); font-size: 30px; line-height: 1; color: var(--red); animation: bob 1.2s ease-in-out infinite; }
+.nline .zone { position: absolute; top: 20px; height: 62px; transform: translateX(-50%); cursor: pointer; border-radius: 6px; }
+.nline .zone:hover { background: rgba(58,123,213,.12); }
+.nline .mark { position: absolute; top: 14px; transform: translateX(-50%); width: 30px; height: 30px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 2px 0 rgba(0,0,0,.2); pointer-events: none; }
+.nline .mark.ok { background: var(--green); } .nline .mark.bad { background: var(--red); } .nline .mark.show { background: var(--gold); }
+.nline .mark span { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); font-weight: 900; font-size: 16px; white-space: nowrap; }
+
+/* volgorde */
+.slots, .pool { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.slots { margin-bottom: 14px; }
+.slot-box { width: clamp(52px, 11vw, 70px); height: clamp(52px, 11vw, 70px); border: 3px dashed #c3ccd6; border-radius: var(--r); display: flex; align-items: center; justify-content: center; }
+.nblock { width: clamp(52px, 11vw, 70px); height: clamp(52px, 11vw, 70px); border-radius: 4px; background-size: cover; image-rendering: pixelated;
+  display: flex; align-items: center; justify-content: center; font-family: var(--pixel); font-size: clamp(16px, 3.4vw, 24px); color: #fff;
+  text-shadow: 0 0 3px #000, 2px 2px 0 #000; box-shadow: 0 4px 0 rgba(0,0,0,.25); cursor: pointer; border: 0; padding: 0; }
+.nblock:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+.nblock.used { visibility: hidden; }
+.nblock.badtap { animation: shake .4s; outline: 4px solid var(--red); }
+.slot-box .nblock { cursor: default; box-shadow: none; }
+.arrowhint { font-size: 15px; color: var(--muted); margin-top: -6px; margin-bottom: 8px; }
+
+/* buren */
+.row-boxes { display: flex; justify-content: center; align-items: center; gap: 10px; }
+
+/* vergelijken */
+.pick2 { display: flex; justify-content: center; gap: 24px; }
+.pick2 .nblock { width: clamp(84px, 18vw, 120px); height: clamp(84px, 18vw, 120px); font-size: clamp(24px, 5vw, 36px); }
+.pick2 .nblock.ok { outline: 5px solid var(--green); }
+
+/* spelscène: poppetje links, blok of eindbaas rechts */
+.scene { display: flex; justify-content: space-between; align-items: flex-end; padding: 8px 48px 0; min-height: 0; }
+.scene .boss-wrap { gap: 4px; }
+
+/* voortgang: splitsingen */
+.splitgrid .c0 { background: #e3e8ee; color: #9aa5b1; } .splitgrid .c1 { background: #f2a49c; } .splitgrid .c2 { background: #f8d48a; }
+.splitgrid .c3 { background: #b6e3a0; } .splitgrid .c4 { background: #4caf3a; color: #fff; }
+.splitgrid { display: grid; gap: 6px; }
+.splitgrid .srow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.splitgrid .whole { font-weight: 900; width: 34px; }
+.splitgrid .cell { padding: 4px 9px; border-radius: 4px; font-size: 15px; }
+.wbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.wbar .wn { width: 150px; font-size: 15px; }
+.wbar .bar { flex: 1; height: 12px; background: #e3e8ee; border-radius: 99px; overflow: hidden; }
+.wbar .bar > div { height: 100%; background: var(--green); }
+.wbar .pct { width: 44px; text-align: right; font-size: 15px; }
+
+.question { min-height: 0; }
+@media (max-width: 640px) {
+  .nline { height: 86px; }
+  .split .legs { width: 120px; height: 26px; }
+  .split .bottom { gap: 30px; }
+  .dots img, .dots .ghost { width: 20px; height: 20px; }
+  .bar10 img { width: 15px; height: 15px; }
+  .qtext { margin-bottom: 6px; }
+  .wbar .wn { width: 110px; }
+  .scene { padding: 6px 34px 0; }
+}

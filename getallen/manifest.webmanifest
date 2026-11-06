@@ -1,0 +1,12 @@
+{
+  "name": "GetallenMijn – splitsen en de getallenlijn",
+  "short_name": "GetallenMijn",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#6fb8f0",
+  "theme_color": "#3c7a28",
+  "icons": [
+    { "src": "../tafels/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
