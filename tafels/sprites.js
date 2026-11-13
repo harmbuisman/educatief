@@ -123,6 +123,10 @@ const PX = (() => {
       const O = ['#1b1027', '#26163a', '#120a1c', '#2c1a42'];
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) p(x, y, r() < 0.06 ? '#5a3a86' : pick(r, O));
     },
+    bedrock(p, r) {
+      const B = ['#3a3a3a', '#555555', '#2a2a2a', '#6a6a6a', '#444444', '#1e1e1e'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) p(x, y, pick(r, B));
+    },
     chestblock(p, r) {
       blockDraw.planks(p, r);
       for (let x = 0; x < 16; x++) { p(x, 6, '#3d2a14'); p(x, 0, '#3d2a14'); p(x, 15, '#3d2a14'); }
@@ -187,6 +191,12 @@ const PX = (() => {
     });
   }
   function sword(tier) {
+    if (tier >= 5) return make('sword_5', 16, 16, (g, p) => {   // Avaritia-zwaard: kosmisch zwaard
+      const R = ['#ff4fd8', '#b47bff', '#4fe3dc', '#ffd23b'];
+      for (let i = 0; i < 10; i++) { p(5 + i, 10 - i, '#12061f'); p(6 + i, 10 - i, R[i % 4]); p(5 + i, 11 - i, R[(i + 2) % 4]); }
+      [[2, 9], [3, 10], [5, 12], [6, 13]].forEach(([x, y]) => p(x, y, '#ffd23b'));
+      p(4, 11, '#e0263a'); p(3, 12, '#3a1a5a'); p(2, 13, '#3a1a5a'); p(1, 14, '#b47bff'); p(15, 0, '#ffffff');
+    });
     return make('sword_' + tier, 16, 16, (g, p) => {
       const col = TIER_COLORS[tier];
       for (let i = 0; i < 9; i++) { p(5 + i, 10 - i, col); p(6 + i, 10 - i, shade(col, 0.4)); p(5 + i, 11 - i, shade(col, -0.35)); }
@@ -194,6 +204,14 @@ const PX = (() => {
       p(3, 12, '#8a6331'); p(2, 13, '#6b4a22'); p(1, 14, '#3e2a12');
     });
   }
+
+  // ---------- HARNASSEN ----------
+  const ARMOR_COLORS = ['#d6dde5', '#9a6a3a', '#cfd6dc', '#f2c12e', '#4fe3dc', '#3a2560'];
+  const armor = t => {
+    const c = ARMOR_COLORS[t] || ARMOR_COLORS[0];
+    return fromMap('armor_' + t, ['kkkk..kkkk', 'kwcckkccck', 'kcccccccck', '.kcccccck.', '.kcccccck.', '.kcCCCCck.', '.kcccccck.', '.kkkkkkkk.'],
+      { k: shade(c, -0.55), c, C: shade(c, -0.2), w: shade(c, 0.6) });
+  };
 
   // ---------- ITEMS ----------
   const GEM = ['..kkkk..', '.kwccck.', 'kwcccCCk', 'kcccCCCk', '.kcCCCk.', '..kCCk..', '...kk...'];
@@ -370,6 +388,14 @@ const PX = (() => {
       rect(2, 12, 13, 15, shirt); rect(2, 12, 13, 12, shade(shirt, 0.2));
       rect(2, 13, 2, 15, shade(shirt, -0.25)); rect(13, 13, 13, 15, shade(shirt, -0.25));
       rect(7, 12, 8, 12, shade(skin, -0.1));
+      // harnas over het shirt
+      if (a.armor) {
+        const ac = ARMOR_COLORS[a.armor] || ARMOR_COLORS[2];
+        rect(2, 12, 13, 15, ac); rect(2, 12, 13, 12, shade(ac, 0.35)); rect(7, 13, 8, 15, shade(ac, -0.2));
+        p(2, 12, shade(ac, -0.35)); p(13, 12, shade(ac, -0.35)); rect(7, 12, 8, 12, shade(skin, -0.1));
+        if (a.armor >= 5) { p(5, 14, '#b47bff'); p(10, 14, '#b47bff'); }
+        else if (a.armor >= 3) { p(5, 14, shade(ac, 0.5)); p(10, 14, shade(ac, 0.5)); }
+      }
       // lange haren achter
       if (style === 'lang') { rect(2, 4, 3, 12, hair); rect(12, 4, 13, 12, hair); }
       // hoofd
@@ -403,5 +429,5 @@ const PX = (() => {
     });
   }
 
-  return { mob, MOBS, block, crack, pickaxe, sword, ore, heart, coin, star, flame, chest, trophy, clock, book, gear, lock, boss, BOSS_THEMES, bigboss, BIGBOSSES, pet, PETS, avatar, AV, ORE_COLORS, shade };
+  return { mob, MOBS, block, crack, pickaxe, sword, ore, heart, coin, star, flame, chest, trophy, clock, book, gear, lock, boss, BOSS_THEMES, bigboss, BIGBOSSES, armor, ARMOR_COLORS, pet, PETS, avatar, AV, ORE_COLORS, shade };
 })();

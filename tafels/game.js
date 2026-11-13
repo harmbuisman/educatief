@@ -44,7 +44,7 @@ const bossPic = b => b.big ? PX.bigboss(b.id) : PX.mob(b.mob);
 function bossLevel(p, b) { return b.rank + 4 * ((p.bossWins || {})[b.id] || 0); }
 function bossStats(d) {
   return {
-    hp: Math.min(12 + 2 * d, 90),
+    hp: Math.min(12 + 3 * d, 150),
     hearts: d < 8 ? 5 : d < 20 ? 4 : 3,
     secs: d < 3 ? 0 : Math.max(3.5, 11 - 0.2 * (d - 3)),   // 0 = geen aanvalstijd
     stars: d < 8 ? 1 : d < 18 ? 2 : d < 30 ? 3 : d < 42 ? 4 : 5
@@ -63,6 +63,24 @@ function chooseBoss(p) {
 }
 function nextBoss(p) { if (!p.nextBoss || !BOSSES.some(b => b.id === p.nextBoss)) { p.nextBoss = chooseBoss(p); save(); } return bossById(p.nextBoss); }
 const MOB_IDS = Object.keys(PX.MOBS);
+// ================= MIJN WERELD: data =================
+const WBLOCKS = ['grass', 'sand', 'planks', 'stone', 'snow', 'bricks', 'ice', 'gold', 'lava', 'diamond', 'obsidian'];
+const WTIER = { grass: 0, sand: 0, planks: 1, stone: 1, snow: 2, bricks: 2, ice: 3, gold: 4, lava: 5, diamond: 6, obsidian: 7 };
+const WNAME = { grass: 'Gras', sand: 'Zand', planks: 'Planken', stone: 'Steen', snow: 'Sneeuw', bricks: 'Bakstenen', ice: 'IJs', gold: 'Goud', lava: 'Lava', diamond: 'Diamant', obsidian: 'Obsidiaan', bedrock: 'Bodemsteen' };
+const WMONS = {
+  grass: ['paddo', 'slijmkoning', 'moerascycloop'], sand: ['kever', 'grotspin'], planks: ['pompoen', 'bosdraak'],
+  stone: ['vleermuis', 'grotspin', 'rotsreus', 'koperreus'], snow: ['sneeuwpop', 'ijscycloop', 'sneeuwtovenaar'],
+  bricks: ['spookje', 'ijzerridder', 'zwarteridder'], ice: ['wolkje', 'ijsslijm', 'ijsreus'], gold: ['robo', 'goudslijm', 'goudridder', 'goudreus'],
+  lava: ['lavareus', 'vuurdraak', 'lavaspin', 'vuurtovenaar'], diamond: ['kristaldraak', 'diamantridder', 'kristalreus', 'diamantdraak'],
+  obsidian: ['schaduwreus', 'schaduwdraak', 'oertovenaar', 'obsidiaanreus']
+};
+const monPic = id => PX.MOBS[id] ? PX.mob(id) : PX.bigboss(id);
+const monName = id => PX.MOBS[id] ? PX.MOBS[id].name : PX.BIGBOSSES.find(b => b.id === id).name;
+// Monsters worden sterker naarmate je wereld groeit: meer gewonnen gevechten, verder van huis en zeldzamere blokken.
+function monStats(lvl) { return { hp: 5 + 3 * lvl, atk: 2 + Math.floor(lvl * 0.8), secs: lvl < 4 ? 0 : Math.max(4, 12 - 0.4 * (lvl - 4)) }; }
+const PLAYER_HP = 20;
+const wkey = (x, y) => x + ',' + y;
+const wNb = (x, y) => [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
 const mobWhere = id => { const w = WORLDS.find(w => w.mob === id); return w ? `Vang in ${w.name} (tafel ${w.t})` : 'Versla als eindbaas'; };
 const ORES = [
   { id: 'kolen', name: 'Kolen', w: 45 }, { id: 'ijzer', name: 'IJzer', w: 26 }, { id: 'goud', name: 'Goud', w: 14 },
@@ -75,6 +93,30 @@ const PICKS = [
   { name: 'Gouden houweel', cost: { goud: 8, ijzer: 4 } },
   { name: 'Diamanten houweel', cost: { diamant: 5, goud: 4 } }
 ];
+// Zwaarden doen schade, harnassen houden schade tegen.
+const SWORDS = [
+  { name: 'Houten zwaard', dmg: 1, cost: null },
+  { name: 'Stenen zwaard', dmg: 2, cost: { kolen: 6 } },
+  { name: 'IJzeren zwaard', dmg: 3, cost: { ijzer: 8, kolen: 2 } },
+  { name: 'Gouden zwaard', dmg: 4, cost: { goud: 8, ijzer: 4 } },
+  { name: 'Diamanten zwaard', dmg: 6, cost: { diamant: 6, goud: 4 } },
+  { name: 'Avaritia-zwaard', dmg: 12, cost: { smaragd: 4, diamant: 12, robijn: 8, goud: 16 } }
+];
+const ARMORS = [
+  { name: 'Geen harnas', def: 0, cost: null },
+  { name: 'Leren harnas', def: 1, cost: { kolen: 10 } },
+  { name: 'IJzeren harnas', def: 2, cost: { ijzer: 10 } },
+  { name: 'Gouden harnas', def: 3, cost: { goud: 10, ijzer: 4 } },
+  { name: 'Diamanten harnas', def: 5, cost: { diamant: 8, goud: 4 } },
+  { name: 'Obsidiaan harnas', def: 7, cost: { smaragd: 4, diamant: 10, robijn: 6 } }
+];
+const weaponDmg = p => SWORDS[p.sword].dmg;
+const armorDef = p => ARMORS[p.armor].def;
+const CRAFT = {
+  pick: { title: 'Houwelen', list: PICKS, icon: i => PX.pickaxe(i), info: () => '', note: 'Een beter houweel geeft meer (en zeldzamere) ertsen.' },
+  sword: { title: 'Zwaarden', list: SWORDS, icon: i => PX.sword(i), info: it => `Schade ${it.dmg}`, note: 'Een goed antwoord is een klap met je zwaard. Een beter zwaard doet meer schade, ook tegen eindbazen.' },
+  armor: { title: 'Harnassen', list: ARMORS, icon: i => PX.armor(i), info: it => `Bescherming ${it.def}`, note: 'Een fout antwoord is een klap van het monster. Een harnas houdt een deel van die schade tegen en geeft extra hartjes tegen eindbazen.' }
+};
 const TITLES = [[1, 'Beginner'], [3, 'Graver'], [5, 'Mijnwerker'], [8, 'Bouwer'], [12, 'Ontdekker'], [16, 'Ridder'], [20, 'Tafelkoning'], [30, 'Legende']];
 const title = lvl => TITLES.filter(t => lvl >= t[0]).pop()[1];
 const xpFor = lvl => 100 + (lvl - 1) * 50;
@@ -107,6 +149,11 @@ const ACH = [
   { id: 'baas5', name: 'Held van de mijn', desc: 'Versla 5 eindbazen', icon: () => PX.sword(4), test: p => p.stats.bosses >= 5 },
   { id: 'baas15', name: 'Bazenjager', desc: 'Versla 15 verschillende eindbazen', icon: () => PX.bigboss('vuurdraak'), test: p => Object.keys(p.bossWins || {}).length >= 15 },
   { id: 'baasall', name: 'Koning van de bazen', desc: 'Versla alle eindbazen', icon: () => PX.bigboss('oerdraak'), test: p => BOSSES.every(b => (p.bossWins || {})[b.id]) },
+  { id: 'land10', name: 'Bouwmeester', desc: 'Bouw 10 blokken in je wereld', icon: () => PX.block('planks'), test: p => p.world.placed >= 10 },
+  { id: 'land50', name: 'Wereldbouwer', desc: 'Bouw 50 blokken in je wereld', icon: () => PX.block('bricks'), test: p => p.world.placed >= 50 },
+  { id: 'wmon10', name: 'Monsterjager', desc: 'Versla 10 monsters in je wereld', icon: () => PX.mob('vleermuis'), test: p => p.world.wins >= 10 },
+  { id: 'harnas4', name: 'Onkwetsbaar', desc: 'Maak het diamanten harnas', icon: () => PX.armor(4), test: p => p.armor >= 4 },
+  { id: 'avaritia', name: 'Avaritia!', desc: 'Maak het Avaritia-zwaard', icon: () => PX.sword(5), test: p => p.sword >= 5 },
   { id: 'race5', name: 'Marathon', desc: '100 goed in de 5-minutenrace', icon: () => PX.clock(), test: p => p.stats.race5Best >= 100 },
   { id: 'race20', name: 'Racer', desc: '20 goed in de tijdrace', icon: () => PX.clock(), test: p => p.stats.raceBest >= 20 },
   { id: 'race35', name: 'Turbo', desc: '35 goed in de tijdrace', icon: () => PX.clock(), test: p => p.stats.raceBest >= 35 },
@@ -121,7 +168,8 @@ let DB;
 function newProfile(name, avatar) {
   return {
     id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, avatar,
-    xp: 0, level: 1, coins: 0, pick: 0,
+    xp: 0, level: 1, coins: 0, pick: 0, sword: 0, armor: 0,
+    world: { tiles: { '0,0': { b: 'bedrock' } }, pos: [0, 0], inv: {}, wins: 0, placed: 0, started: false },
     ores: { kolen: 0, ijzer: 0, goud: 0, robijn: 0, diamant: 0, smaragd: 0 },
     found: { kolen: 0, ijzer: 0, goud: 0, robijn: 0, diamant: 0, smaragd: 0 },
     stars: {}, best: {}, facts: {}, ach: {}, mobs: {},
@@ -144,6 +192,9 @@ function load() {
     fillDefaults(p, newProfile(p.name, p.avatar));
     // oude spelers: bazen die al verslagen waren (vaste volgorde) tellen mee
     if (p.stats.bosses > 0 && !Object.keys(p.bossWins).length) OLD_BOSS_IDS.slice(0, Math.min(p.stats.bosses, OLD_BOSS_IDS.length)).forEach(id => p.bossWins[id] = 1);
+    // wie al eindbazen had verslagen, krijgt een paar blokken om mee te beginnen
+    if (!p.world.started) { p.world.started = true; addBlocks(p, Array.from({ length: Math.min(p.stats.bosses, 8) }, (_, i) => i % 2 ? 'stone' : 'grass')); }
+    p.avatar.armor = p.armor;
   });
 }
 function save() { try { localStorage.setItem(SAVE, JSON.stringify(DB)); } catch (e) { } }
@@ -337,6 +388,7 @@ function renderHome() {
   ];
   app.innerHTML = `<div class="screen">
     ${topbar()}
+    ${homeTabs('map')}
     <div class="card">
       <h2 style="margin-bottom:14px">Kies een wereld</h2>
       <div class="worlds">
@@ -369,6 +421,126 @@ function renderHome() {
   </div>`;
 }
 
+function homeTabs(active) {
+  return `<div class="hometabs">
+    <button class="btn ${active === 'map' ? 'green' : 'light'}" data-act="home">${img(PX.block('grass'))} Tafels</button>
+    <button class="btn ${active === 'world' ? 'green' : 'light'}" data-act="world">${img(PX.block('bedrock'))} Mijn wereld</button></div>`;
+}
+
+// ================= MIJN WERELD =================
+let WS = { sel: null, busy: false, pending: null };
+function addBlocks(p, list) { list.forEach(b => p.world.inv[b] = (p.world.inv[b] || 0) + 1); }
+function dropBlock(lvl) {
+  const max = Math.min(7, 1 + Math.floor(lvl / 2));
+  const items = WBLOCKS.filter(b => WTIER[b] <= max).map(b => ({ b, w: 1 + WTIER[b] }));
+  let r = Math.random() * items.reduce((a, i) => a + i.w, 0);
+  for (const i of items) { r -= i.w; if (r <= 0) return i.b; }
+  return items[0].b;
+}
+function wPlace(p, x, y, b) {
+  const w = p.world, k = wkey(x, y);
+  if (w.tiles[k] || !(w.inv[b] > 0) || !wNb(x, y).some(([a, c]) => w.tiles[wkey(a, c)])) return false;
+  const lvl = 1 + w.wins + WTIER[b] + Math.floor((Math.abs(x) + Math.abs(y)) / 2);
+  w.tiles[k] = { b, m: { id: rnd(WMONS[b]), lvl } };
+  if (!--w.inv[b]) delete w.inv[b];
+  w.placed++;
+  return true;
+}
+// Kortste route over land; door een monster heen lopen kan niet.
+function wPath(p, tx, ty) {
+  const w = p.world, [sx, sy] = w.pos, start = wkey(sx, sy), goal = wkey(tx, ty), prev = { [start]: null }, q = [[sx, sy]];
+  while (q.length) {
+    const [x, y] = q.shift(), k = wkey(x, y);
+    if (k === goal) break;
+    if (k !== start && w.tiles[k].m) continue;
+    wNb(x, y).forEach(([a, b]) => { const kk = wkey(a, b); if (w.tiles[kk] && !(kk in prev)) { prev[kk] = k; q.push([a, b]); } });
+  }
+  if (!(goal in prev)) return null;
+  const path = []; let k = goal;
+  while (k !== start) { path.unshift(k.split(',').map(Number)); k = prev[k]; }
+  return path;
+}
+function renderWorld() {
+  G = null; EDIT = null; setBiome('grass'); closeModal();
+  const p = P(), w = p.world, inv = WBLOCKS.filter(b => w.inv[b] > 0);
+  if (WS.sel && !(w.inv[WS.sel] > 0)) WS.sel = null;
+  const land = Object.keys(w.tiles).length, mons = Object.values(w.tiles).filter(t => t.m).length;
+  const help = WS.sel ? `Tik op een <b>+</b> om ${WNAME[WS.sel].toLowerCase()} te bouwen` : inv.length ? 'Kies een blok om te bouwen, of tik op land om te lopen' : 'Tik op land om te lopen';
+  app.innerHTML = `<div class="screen wscreen">
+    ${homeTabs('world')}
+    <div class="card wstat">
+      ${avImg(p.avatar)}
+      <span class="chipi" title="Levens">${img(PX.heart())}${PLAYER_HP}</span>
+      <span class="chipi" title="Schade van je zwaard">${img(PX.sword(p.sword))}${weaponDmg(p)}</span>
+      <span class="chipi" title="Bescherming van je harnas">${img(PX.armor(p.armor))}${armorDef(p)}</span>
+      <span class="chipi" title="Land">${img(PX.block('grass'))}${land}</span>
+      <span class="chipi" title="Monsters in je wereld">${img(PX.mob('spookje'))}${mons}</span>
+      <span class="chipi" title="Wereldniveau: gewonnen gevechten">${img(PX.star())}${w.wins}</span>
+      <button class="btn light sm" data-act="craft" style="margin-left:auto">${img(PX.pickaxe(p.pick))} Werkbank</button>
+    </div>
+    <div class="card wmap" id="wmap"></div>
+    <div class="card winv">
+      ${inv.map(b => `<button class="wblk ${WS.sel === b ? 'sel' : ''}" data-act="wsel" data-b="${b}" title="${WNAME[b]}">${img(PX.block(b))}<span>${w.inv[b]}</span></button>`).join('')}
+      <span class="small muted whelp">${inv.length ? help : `Nog geen blokken. ${p.level >= MODE_UNLOCK.boss ? 'Versla eindbazen' : 'Speel tot level ' + MODE_UNLOCK.boss + ' en versla eindbazen'} om blokken te verdienen!`}</span>
+    </div>
+  </div>`;
+  drawWorldMap();
+}
+function drawWorldMap() {
+  const el = $('#wmap'); if (!el) return;
+  const p = P(), w = p.world, r = el.getBoundingClientRect();
+  const W = r.width - 16, H = r.height - 16;
+  const tile = Math.max(40, Math.min(88, Math.floor(Math.min(W / 5, H / 5))));
+  let cols = Math.max(3, Math.floor(W / tile)), rows = Math.max(3, Math.floor(H / tile));
+  if (cols % 2 === 0) cols--; if (rows % 2 === 0) rows--;
+  const [px, py] = w.pos, x0 = px - (cols - 1) / 2, y0 = py - (rows - 1) / 2;
+  let h = '';
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const x = x0 + i, y = y0 + j, t = w.tiles[wkey(x, y)];
+    const st = `left:${i * tile}px;top:${j * tile}px;width:${tile}px;height:${tile}px`;
+    if (t) {
+      h += `<div class="wt land" style="${st}" data-act="wtap" data-x="${x}" data-y="${y}">${img(PX.block(t.b), 'wb')}${t.m ? img(monPic(t.m.id), 'wmon mob') + `<span class="wlvl">${t.m.lvl}</span>` : ''}${x === px && y === py ? avImg(p.avatar) : ''}</div>`;
+    } else if (WS.sel && wNb(x, y).some(([a, b]) => w.tiles[wkey(a, b)])) {
+      h += `<div class="wt ghost" style="${st}" data-act="wtap" data-x="${x}" data-y="${y}">+</div>`;
+    }
+  }
+  el.innerHTML = `<div class="wgrid" style="width:${cols * tile}px;height:${rows * tile}px">${h}</div>`;
+}
+function worldTap(x, y) {
+  if (WS.busy) return;
+  const p = P(), w = p.world, t = w.tiles[wkey(x, y)];
+  if (!t) {
+    if (WS.sel && wPlace(p, x, y, WS.sel)) { save(); SFX.dig(); renderWorld(); checkAch(p); }
+    return;
+  }
+  const path = wPath(p, x, y);
+  if (!path || !path.length) return;
+  WS.busy = true;
+  let i = 0;
+  const step = () => {
+    if (!$('#wmap')) { WS.busy = false; return; }
+    const prev = [...w.pos], [a, b] = path[i];
+    w.pos = [a, b]; SFX.click(); drawWorldMap();
+    const tt = w.tiles[wkey(a, b)];
+    if (tt.m) { WS.busy = false; save(); return fightPrompt(a, b, prev); }
+    if (++i < path.length) setTimeout(step, 140); else { WS.busy = false; save(); }
+  };
+  step();
+}
+function fightPrompt(x, y, prev) {
+  const p = P(), t = p.world.tiles[wkey(x, y)], ms = monStats(t.m.lvl), hit = Math.max(1, ms.atk - armorDef(p));
+  WS.pending = { x, y, prev };
+  SFX.hurt();
+  modal(`<h2>${monName(t.m.id)} valt aan!</h2>
+    ${img(monPic(t.m.id), 'mob', 'style="width:110px;height:110px"')}
+    <div class="fightinfo">
+      <span>Niveau <b>${t.m.lvl}</b></span><span>${img(PX.heart())} <b>${ms.hp}</b> levens</span>
+      <span>Elke fout: <b>-${hit}</b> ${armorDef(p) ? `(harnas houdt ${Math.min(armorDef(p), ms.atk - 1)} tegen)` : ''}</span>
+      <span>Jouw klap: <b>${weaponDmg(p)}</b></span>${ms.secs ? `<span>${img(PX.clock())} ${Math.round(ms.secs)} sec per som</span>` : ''}
+    </div>
+    <div class="row"><button class="btn light" data-act="wflee">Terug</button><button class="btn red" data-act="wfight">⚔ Vechten!</button></div>`);
+}
+
 // ================= SPEL =================
 let G = null;
 const mkQ = (t, m, idx, retry = false) => ({ t, m, a: t * m, idx, retry, tries: 0, hinted: false });
@@ -380,6 +552,7 @@ function pickFact(tables) {
     let w = 1;
     if (!f) w = 2;
     else { const n = f.c + f.w; w = 1 + 5 * (f.w / Math.max(1, n)) + (n < 3 ? 1 : 0) + (f.c ? Math.min(2, (f.time / f.c) / 4) : 0); }
+    if (G && G.mode === 'wfight' && t >= 6) w *= 1 + G.mon.lvl / 8;
     if (G && G.last === key) w = 0;
     items.push([t, m, w]);
   } });
@@ -401,9 +574,14 @@ function startRound(mode, table) {
   if (mode === 'mix') { G.block = 'obsidian'; G.mob = rnd(unlockedTables(p).map(t => WORLDS.find(w => w.t === t).mob)); }
   if (mode === 'race') { G.block = 'planks'; G.mob = 'wolkje'; G.raceSecs = 60; }
   if (mode === 'race5') { G.mode = mode = 'race'; G.race5 = true; G.block = 'gold'; G.mob = 'robo'; G.raceSecs = 300; }
+  if (mode === 'wfight') {
+    const { x, y, prev } = WS.pending, t = p.world.tiles[wkey(x, y)], ms = monStats(t.m.lvl);
+    G.wTile = [x, y]; G.wPrev = prev; G.mon = { ...t.m }; G.block = t.b === 'bedrock' ? 'stone' : t.b; G.mob = 'robo';
+    G.bossMax = ms.hp; G.bossHp = ms.hp; G.bossSecs = ms.secs; G.monAtk = ms.atk; G.pmax = PLAYER_HP; G.php = PLAYER_HP;
+  }
   if (mode === 'boss') {
     const b = nextBoss(p), st = bossStats(bossLevel(p, b));
-    G.boss = b; G.bossSt = st; G.block = b.block; G.mob = b.mob || 'robo'; G.hearts = st.hearts; G.maxHearts = st.hearts;
+    G.boss = b; G.bossSt = st; G.block = b.block; G.mob = b.mob || 'robo'; G.hearts = st.hearts + Math.floor(armorDef(p) / 2); G.maxHearts = G.hearts;
     G.bossMax = st.hp; G.bossHp = G.bossMax; G.bossSecs = st.secs;
     p.bossRecent = [b.id, ...(p.bossRecent || []).filter(x => x !== b.id)].slice(0, 4);
     p.nextBoss = null; save();   // na dit gevecht (winst of verlies) komt er een andere baas
@@ -428,6 +606,12 @@ function renderGame() {
       ${img(PX.mob(G.mob), 'guard mob', 'id="guard"')}${img(PX.pickaxe(p.pick), 'pickaxe-swing', 'id="pickImg"')}</div>`;
   if (isRound()) { top = `<div class="progress" id="progress"></div>`; right = mine; }
   else if (G.mode === 'race') { top = `<div class="timerbar" style="flex:1;min-width:200px"><div id="raceBar" style="width:100%"></div><span id="raceTxt">${G.raceSecs > 60 ? '5:00' : '60 sec'}</span></div>`; right = mine; }
+  else if (G.mode === 'wfight') {
+    top = `<div class="hpbar php"><div id="phpBar" style="width:100%"></div><span id="phpTxt"></span></div>
+      <span class="lvchip">${img(PX.sword(p.sword))} ${weaponDmg(p)} · ${img(PX.armor(p.armor))} ${armorDef(p)} · niveau ${G.mon.lvl}</span>`;
+    right = `<div class="boss-wrap"><div class="boss-name">${monName(G.mon.id)}</div>
+      ${img(monPic(G.mon.id), 'boss-img mob', 'id="bossImg"')}<div class="hpbar"><div id="hpBar" style="width:100%"></div><span id="hpTxt"></span></div></div>`;
+  }
   else {
     top = `<div class="hearts" id="hearts"></div>`;
     top += `<span class="lvchip">${'★'.repeat(G.bossSt.stars)}${'☆'.repeat(5 - G.bossSt.stars)}</span>`;
@@ -466,6 +650,7 @@ function updateHUD() {
     const pl = $('#player'); if (pl) pl.classList.toggle('onfire', G.streak >= 2);
   }
   const h = $('#hearts'); if (h) h.innerHTML = Array.from({ length: G.maxHearts || 5 }, (_, i) => img(PX.heart(i < G.hearts))).join('');
+  const pb = $('#phpBar'); if (pb) { pb.style.width = (G.php / G.pmax * 100) + '%'; $('#phpTxt').textContent = 'Jij: ' + G.php + ' / ' + G.pmax; }
   const hp = $('#hpBar'); if (hp) { hp.style.width = (G.bossHp / G.bossMax * 100) + '%'; $('#hpTxt').textContent = G.bossHp + ' / ' + G.bossMax; }
 }
 
@@ -485,10 +670,25 @@ function choicesFor(q) {
   return shuffle([...set]);
 }
 
+const fighting = () => G && (G.mode === 'boss' || G.mode === 'wfight');
+// Fout antwoord of te laat: het monster raakt jou. Geeft true terug als je verslagen bent.
+function hurtPlayer() {
+  if (G.mode === 'boss') G.hearts--;
+  else {
+    const d = Math.max(1, G.monAtk - armorDef(P()));
+    G.php = Math.max(0, G.php - d);
+    floater($('#player'), '-' + d, '#ffd0c8');
+  }
+  SFX.hurt();
+  const gs = $('#gameScreen'); gs.classList.remove('screen-shake'); void gs.offsetWidth; gs.classList.add('screen-shake');
+  document.body.classList.add('flash-red'); setTimeout(() => document.body.classList.remove('flash-red'), 450);
+  updateHUD();
+  return G.mode === 'boss' ? G.hearts <= 0 : G.php <= 0;
+}
 function startSpeedbar() {
   const sp = $('#speed'); if (!sp) return;
-  const secs = G && G.mode === 'boss' && G.bossSecs ? G.bossSecs : 6;
-  sp.classList.toggle('danger', !!(G && G.mode === 'boss' && G.bossSecs));
+  const secs = fighting() && G.bossSecs ? G.bossSecs : 6;
+  sp.classList.toggle('danger', !!(fighting() && G.bossSecs));
   sp.style.transition = 'none'; sp.style.width = '100%';
   requestAnimationFrame(() => requestAnimationFrame(() => { sp.style.transition = `width ${secs}s linear`; sp.style.width = '0%'; }));
   armBoss();
@@ -497,19 +697,15 @@ function startSpeedbar() {
 function armBoss() {
   if (!G) return;
   clearTimeout(G.bossTO);
-  if (G.mode !== 'boss' || !G.bossSecs || G.done) return;
+  if (!fighting() || !G.bossSecs || G.done) return;
   const myG = G, q = G.current;
   G.bossTO = setTimeout(() => {
     if (G !== myG || G.done || G.current !== q || G.locked) return;
     G.locked = true;
     if (q.tries === 0) recordFact(q, false, G.bossSecs);
     q.tries = 2; G.streak = 0;
-    G.hearts--; SFX.hurt();
-    const gs = $('#gameScreen'); gs.classList.remove('screen-shake'); void gs.offsetWidth; gs.classList.add('screen-shake');
-    document.body.classList.add('flash-red'); setTimeout(() => document.body.classList.remove('flash-red'), 450);
     const bi = $('#bossImg'); if (bi) floater(bi, 'AANVAL!', '#ffd0c8');
-    updateHUD();
-    if (G.hearts <= 0) { G.answer = String(q.a); showSum('hint'); setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
+    if (hurtPlayer()) { G.answer = String(q.a); showSum('hint'); setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
     giveUp(q, 'bad', `Te laat! ${q.m} × ${q.t} = ${q.a}`);
   }, G.bossSecs * 1000);
 }
@@ -584,10 +780,10 @@ function onCorrect(q, dt) {
   sayBubble(rnd(PRAISE));
   SFX.correct();
 
-  if (G.mode === 'boss') {
+  if (fighting()) {
     const bi = $('#bossImg');
-    const crit = first && dt < 3;
-    const dmg = 1 + Math.floor(p.pick / 2) + (crit ? 1 : 0);
+    const crit = first && dt < 3, base = weaponDmg(p);
+    const dmg = base + (crit ? Math.ceil(base / 2) : 0);
     G.bossHp = Math.max(0, G.bossHp - dmg);
     bi.classList.remove('hurt'); void bi.offsetWidth; bi.classList.add('hurt');
     SFX.hit(); burst(bi, blockColors(G.block).concat('#fff'), 14);
@@ -626,13 +822,7 @@ function onWrong(q, btn) {
   showSum('wrong');
   SFX.wrong();
   updateHUD();
-  if (G.mode === 'boss') {
-    G.hearts--; SFX.hurt();
-    const gs = $('#gameScreen'); gs.classList.remove('screen-shake'); void gs.offsetWidth; gs.classList.add('screen-shake');
-    document.body.classList.add('flash-red'); setTimeout(() => document.body.classList.remove('flash-red'), 450);
-    updateHUD();
-    if (G.hearts <= 0) { setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
-  }
+  if (fighting() && hurtPlayer()) { setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
   // Tijdrace: altijd opnieuw proberen. Anders: één extra poging.
   if (G.mode === 'race' || q.tries < 2) {
     setFeedback(rnd(TRYAGAIN), 'bad');
@@ -665,6 +855,7 @@ function useHint() {
   q.hinted = true; G.hints++; G.streak = 0;
   P().stats.hints++;
   SFX.hint();
+  if (fighting() && hurtPlayer()) { G.answer = String(q.a); showSum('hint'); const myG = G; setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
   giveUp(q, 'bad', `${q.m} × ${q.t} = ${q.a}. Onthouden!`);
 }
 
@@ -712,9 +903,22 @@ function finishRound(extra = {}) {
       if (st.stars >= 4) G.ores.smaragd = (G.ores.smaragd || 0) + 1;
       r.firstWin = firstWin;
       if (b.mob && !p.mobs[b.mob]) { p.mobs[b.mob] = today(); r.newMob = b.mob; }
+      r.drops = [b.block, b.block, dropBlock(st.stars * 2)];
+      addBlocks(p, r.drops);
     } else G.coins += 5;
     p.nextBoss = chooseBoss(p);
     r.next = bossById(p.nextBoss);
+  }
+  if (G.mode === 'wfight') {
+    const w = p.world, t = w.tiles[wkey(...G.wTile)];
+    r.mon = G.mon;
+    if (extra.win) {
+      t.m = null; w.wins++;
+      r.drops = [dropBlock(G.mon.lvl)]; if (Math.random() < 0.35) r.drops.push(dropBlock(G.mon.lvl));
+      addBlocks(p, r.drops);
+      G.coins += 5 + 2 * G.mon.lvl; G.xp += 20 + 5 * G.mon.lvl;
+      if (Math.random() < 0.6) { const o = rollOre(p.pick + 1); G.ores[o] = (G.ores[o] || 0) + 1; }
+    } else { w.pos = G.wPrev; G.coins += 2; }
   }
   r.coins = G.coins; r.xp = G.xp; r.ores = { ...G.ores }; r.correct = G.firstCorrect; r.total = G.mainTotal; r.best = G.best; r.hints = G.hints;
   p.coins += G.coins;
@@ -735,6 +939,9 @@ function renderResult(r) {
   } else if (r.mode === 'race') {
     head = r.record ? 'Nieuw record!' : 'Tijd is om!';
     line = r.race5 ? `${r.score} sommen goed in 5 minuten · record: ${p.stats.race5Best}` : `${r.score} sommen goed in 60 seconden · record: ${p.stats.raceBest}`;
+  } else if (r.mode === 'wfight') {
+    head = r.win ? `${monName(r.mon.id)} verslagen!` : `${monName(r.mon.id)} was te sterk…`;
+    line = r.win ? 'Dit blok is nu veilig. Ga verder met bouwen!' : `Je bent teruggevlucht. Probeer het nog eens, of maak eerst een beter zwaard of harnas in de werkbank.`;
   } else {
     head = r.win ? `${bossName(r.boss)} verslagen!` : `${bossName(r.boss)} won deze keer…`;
     line = (r.win ? (r.firstWin ? 'Nieuwe eindbaas verslagen! Je bent een echte held!' : 'Weer gewonnen!') : 'Oefen nog wat en probeer het opnieuw!')
@@ -742,7 +949,7 @@ function renderResult(r) {
   }
   const idx = WORLDS.findIndex(w => w.t === r.table);
   const next = r.mode === 'tafel' && idx < WORLDS.length - 1 && unlocked(p, idx + 1) ? WORLDS[idx + 1] : null;
-  const top = r.mode === 'boss' ? img(bossPic(r.boss), 'mob', 'style="width:110px;height:110px"') : `<div class="mine-block" id="resBlock" style="width:100px">${img(PX.block(G.block), 'base')}${img(PX.crack(10))}</div>`;
+  const top = r.mode === 'boss' || r.mode === 'wfight' ? img(r.mode === 'boss' ? bossPic(r.boss) : monPic(r.mon.id), 'mob', 'style="width:110px;height:110px"') : `<div class="mine-block" id="resBlock" style="width:100px">${img(PX.block(G.block), 'base')}${img(PX.crack(10))}</div>`;
   app.innerHTML = `<div class="screen result">
     <div class="card">
       <div id="resTop">${top}</div>
@@ -756,20 +963,22 @@ function renderResult(r) {
         <div class="reward">${img(PX.block('grass', 5))}+${r.xp} XP</div>
         <div class="reward">${img(PX.coin())}+${r.coins}</div>
         ${Object.entries(r.ores).map(([o, n]) => `<div class="reward">${img(PX.ore(o))}+${n} ${ORES.find(x => x.id === o).name}</div>`).join('')}
+        ${(r.drops || []).map(b => `<div class="reward">${img(PX.block(b))}+1 ${WNAME[b]}</div>`).join('')}
       </div>
       ${r.best >= 5 ? `<div class="small">${img(PX.flame(), '', 'style="width:20px;vertical-align:middle"')} Langste reeks: ${r.best} op rij</div>` : ''}
     </div>
     <div class="row">
-      <button class="btn light" data-act="home">◀ Kaart</button>
-      <button class="btn gold" data-act="again">↻ Nog een keer</button>
+      ${r.mode === 'wfight' ? `<button class="btn green" data-act="world">${img(PX.block('grass'))} Naar mijn wereld</button>` : `<button class="btn light" data-act="home">◀ Kaart</button>
+      <button class="btn gold" data-act="again">↻ Nog een keer</button>`}
+      ${r.mode === 'boss' && r.drops ? `<button class="btn green" data-act="world">${img(PX.block('grass'))} Bouwen in mijn wereld</button>` : ''}
       ${next ? `<button class="btn green" data-act="play" data-t="${next.t}">Volgende: tafel ${next.t} ▶</button>` : ''}
     </div>
   </div>`;
   G.lastMode = r.race5 ? 'race5' : r.mode;
   const rb = $('#resBlock');
   if (rb) setTimeout(() => { if (!rb.isConnected) return; SFX.brk(); burst(rb, blockColors(G.block), 30); rb.style.visibility = 'hidden'; }, 350);
-  if (r.mode === 'boss' && r.win) setTimeout(() => { SFX.win(); confetti(80); }, 500);
-  if (r.mode === 'boss' && !r.win) SFX.lose();
+  if (fighting() && r.win) setTimeout(() => { SFX.win(); confetti(80); }, 500);
+  if (fighting() && !r.win) SFX.lose();
   if (r.newMob) setTimeout(() => { SFX.coin(); confetti(50); }, 1300);
   document.querySelectorAll('.bigstars img').forEach((el, i) => {
     setTimeout(() => { el.classList.add('in'); if (i < r.stars) SFX.star(i); }, 650 + i * 380);
@@ -808,24 +1017,30 @@ function renderMobs() {
 }
 
 // ================= WERKBANK =================
+function craftCard(p, kind) {
+  const c = CRAFT[kind], cur = p[kind];
+  return `<div class="card"><h2 style="margin-bottom:14px">${c.title}</h2>
+    <div class="grid-items">${c.list.map((it, i) => {
+      const have = cur >= i, nextUp = i === cur + 1;
+      const can = nextUp && Object.entries(it.cost || {}).every(([o, n]) => p.ores[o] >= n);
+      return `<div class="slot item ${cur === i ? 'equipped' : have ? 'owned' : ''} ${kind === 'sword' && i === 5 ? 'epic' : ''}">${img(c.icon(i))}<div class="iname">${it.name}</div>
+        ${c.info(it) ? `<div class="small"><b>${c.info(it)}</b></div>` : ''}
+        ${it.cost ? `<div class="recipe">${Object.entries(it.cost).map(([o, n]) => `${img(PX.ore(o))}${n}`).join(' &nbsp;')}</div>` : '<div class="recipe muted">start</div>'}
+        ${have ? `<div class="small muted">${cur === i ? 'In gebruik' : 'Gemaakt'}</div>` : nextUp ? `<button class="btn sm ${can ? 'green' : 'light'}" data-act="doCraft" data-kind="${kind}" data-i="${i}" ${can ? '' : 'disabled'}>Maken</button>` : img(PX.lock(), '', 'style="width:26px;height:26px"')}
+      </div>`;
+    }).join('')}</div>
+    <p class="muted small" style="margin:12px 0 0">${c.note}</p></div>`;
+}
 function renderCraft() {
-  const p = P();
-  app.innerHTML = `<div class="screen">${topbar('home')}
+  const p = P(), back = CRAFT.from === 'world' ? 'world' : 'home';
+  app.innerHTML = `<div class="screen">${topbar(back)}
     <div class="card"><h2 style="margin-bottom:14px">Jouw kist</h2>
       <div class="grid-items">${ORES.map(o => `<div class="slot item">${img(PX.ore(o.id))}<div class="iname">${o.name}</div><div class="cnt">${p.ores[o.id]}</div></div>`).join('')}</div>
-      <p class="muted small" style="margin:12px 0 0">Ertsen vind je door sommen in één keer goed te hakken. Hoe beter je houweel, hoe meer (en zeldzamere) ertsen.</p>
+      <p class="muted small" style="margin:12px 0 0">Ertsen vind je door sommen in één keer goed te hakken en door monsters te verslaan.</p>
     </div>
-    <div class="card"><h2 style="margin-bottom:14px">Werkbank</h2>
-      <div class="grid-items">${PICKS.map((pk, i) => {
-        const have = p.pick >= i, nextUp = i === p.pick + 1;
-        const can = nextUp && Object.entries(pk.cost || {}).every(([o, n]) => p.ores[o] >= n);
-        return `<div class="slot item ${p.pick === i ? 'equipped' : have ? 'owned' : ''}">${img(PX.pickaxe(i))}<div class="iname">${pk.name}</div>
-          ${pk.cost ? `<div class="recipe">${Object.entries(pk.cost).map(([o, n]) => `${img(PX.ore(o))}${n}`).join(' &nbsp;')}</div>` : '<div class="recipe muted">start</div>'}
-          ${have ? `<div class="small muted">${p.pick === i ? 'In gebruik' : 'Gemaakt'}</div>` : nextUp ? `<button class="btn sm ${can ? 'green' : 'light'}" data-act="doCraft" data-i="${i}" ${can ? '' : 'disabled'}>Maken</button>` : img(PX.lock(), '', 'style="width:26px;height:26px"')}
-        </div>`;
-      }).join('')}</div>
-      <p class="muted small" style="margin:12px 0 0">Elk beter houweel geeft meer ertskans. Met ijzer en diamant doe je ook meer schade tegen een eindbaas.</p>
-    </div>
+    ${craftCard(p, 'sword')}
+    ${craftCard(p, 'armor')}
+    ${craftCard(p, 'pick')}
   </div>`;
 }
 
@@ -947,7 +1162,7 @@ const ACTIONS = {
   saveAv: () => {
     const name = (EDIT.name || '').trim();
     if (!name) { $('#nameIn').focus(); toast(PX.book(), 'Even wachten', 'Vul eerst je naam in!'); return; }
-    if (EDIT.id) { const p = DB.profiles.find(x => x.id === EDIT.id); p.name = name; p.avatar = EDIT.av; }
+    if (EDIT.id) { const p = DB.profiles.find(x => x.id === EDIT.id); p.name = name; p.avatar = { ...EDIT.av, armor: p.armor }; }
     else { const p = newProfile(name, EDIT.av); DB.profiles.push(p); DB.current = p.id; }
     save(); EDIT = null; renderHome();
   },
@@ -963,14 +1178,20 @@ const ACTIONS = {
   lockedWorld: () => { SFX.wrong(); toast(PX.lock(), 'Nog op slot', 'Haal eerst een ster in de vorige wereld!'); },
   lockedMode: d => { SFX.wrong(); toast(PX.lock(), 'Nog op slot', 'Speel verder tot level ' + d.need + '!'); },
   mobs: () => renderMobs(),
-  craft: () => renderCraft(),
+  craft: () => { CRAFT.from = $('#wmap') ? 'world' : 'home'; renderCraft(); },
   doCraft: d => {
-    const p = P(), i = +d.i, pk = PICKS[i];
-    if (i !== p.pick + 1 || !Object.entries(pk.cost).every(([o, n]) => p.ores[o] >= n)) return;
-    Object.entries(pk.cost).forEach(([o, n]) => p.ores[o] -= n);
-    p.pick = i; save(); SFX.level(); confetti(40);
-    toast(PX.pickaxe(i), 'Gemaakt!', pk.name); checkAch(p); renderCraft();
+    const p = P(), kind = d.kind || 'pick', i = +d.i, it = CRAFT[kind].list[i];
+    if (!it || i !== p[kind] + 1 || !Object.entries(it.cost).every(([o, n]) => p.ores[o] >= n)) return;
+    Object.entries(it.cost).forEach(([o, n]) => p.ores[o] -= n);
+    p[kind] = i; if (kind === 'armor') p.avatar.armor = i;
+    save(); SFX.level(); confetti(kind === 'sword' && i === 5 ? 150 : 40);
+    toast(CRAFT[kind].icon(i), 'Gemaakt!', it.name); checkAch(p); renderCraft();
   },
+  world: () => { closeModal(); renderWorld(); },
+  wsel: d => { WS.sel = WS.sel === d.b ? null : d.b; renderWorld(); },
+  wtap: d => worldTap(+d.x, +d.y),
+  wfight: () => { closeModal(); startRound('wfight'); },
+  wflee: () => { const p = P(); if (WS.pending) p.world.pos = WS.pending.prev; save(); closeModal(); drawWorldMap(); },
   shop: () => renderShop(),
   shopTab: d => { shopTab = d.tab; renderShop(); },
   buy: d => {
@@ -1006,6 +1227,11 @@ document.addEventListener('click', e => {
   if (fn) { if (!['av', 'choose', 'hint'].includes(a.dataset.act)) SFX.click(); fn(a.dataset); }
 });
 document.addEventListener('keydown', e => {
+  const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+  if (dir && $('#wmap') && $('#modal').classList.contains('hidden')) {
+    e.preventDefault(); const [x, y] = P().world.pos, t = P().world.tiles[wkey(x + dir[0], y + dir[1])];
+    if (t) worldTap(x + dir[0], y + dir[1]); return;
+  }
   if (!G || G.done || !$('#gameScreen') || !$('#modal').classList.contains('hidden')) return;
   if (/^[0-9]$/.test(e.key)) {
     const ch = $('#choices');
@@ -1027,6 +1253,7 @@ try {
 } catch (e) { }
 load();
 renderProfiles();
+window.addEventListener('resize', () => { if ($('#wmap')) drawWorldMap(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => { });
 }
