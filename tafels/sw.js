@@ -1,5 +1,5 @@
 // Netwerk eerst, cache als terugval: zo werkt de app ook offline, maar krijg je altijd de nieuwste versie als je online bent.
-const CACHE = 'tafelmijn-v3';
+const CACHE = 'tafelmijn-v4';
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {

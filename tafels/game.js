@@ -62,6 +62,83 @@ function chooseBoss(p) {
   return rnd(cand).id;
 }
 function nextBoss(p) { if (!p.nextBoss || !BOSSES.some(b => b.id === p.nextBoss)) { p.nextBoss = chooseBoss(p); save(); } return bossById(p.nextBoss); }
+// ================= GROEP 5 · BLOK 3: extra werelden =================
+const BLOK = [
+  { id: 'plus', kind: 'plus', name: 'Plus tot 1000', sub: 'Rijgen en kleine som', block: 'gold', mob: 'robo', icon: '+' },
+  { id: 'min', kind: 'min', name: 'Min tot 1000', sub: 'Rijgen en kleine som', block: 'ice', mob: 'sneeuwpop', icon: '−' },
+  { id: 'keer', kind: 'keer', name: 'Keer met splitsen', sub: 'Sommen als 3 × 14', block: 'bricks', mob: 'spookje', icon: '×' },
+  { id: 'deel', kind: 'deel', name: 'Delen', sub: 'Verhaaltjes en plaatjes', block: 'planks', mob: 'pompoen', icon: ':' },
+  { id: 'klok', kind: 'klok', name: 'Klokkijken', sub: '5 en 10 voor en over', block: 'stone', mob: 'vleermuis', icon: '⏰' }
+];
+const wKey = w => w.id || w.t;
+const findWorld = k => WORLDS.find(w => String(w.t) === String(k)) || BLOK.find(w => w.id === k);
+const MAX_STARS = (WORLDS.length + BLOK.length) * 3;
+// Bij deze sommen mag je wat langer nadenken voor 3 sterren.
+const SLOW = { plus: 10, min: 10, keer: 12, deel: 14, klok: 12 };
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+function genBlok(kind, idx) {
+  const q = { kind, idx, retry: false, tries: 0, hinted: false, input: 'num' };
+  if (kind === 'plus') {
+    const v = idx % 3;
+    let a, b, via = false;
+    if (v === 0) { a = ri(1, 8) * 100; b = ri(1, 9 - a / 100) * 100; via = true; }                        // 500 + 300 via 5 + 3
+    else if (v === 1) { do { a = ri(11, 89) * 10; } while (a % 100 === 0); b = ri(1, Math.max(1, Math.floor((1000 - a) / 100))) * 100; } // 380 + 200
+    else { do { a = ri(11, 69) * 10; b = ri(11, 49) * 10; } while (a % 100 === 0 || b % 100 === 0 || a + b > 1000); } // 380 + 160
+    Object.assign(q, { x: a, y: b, op: '+', a: a + b, key: 'plus:' + v, via: via && [a / 100, b / 100] });
+  } else if (kind === 'min') {
+    const v = idx % 3;
+    let a, b, via = false;
+    if (v === 0) { a = ri(2, 10) * 100; b = ri(1, a / 100 - 1) * 100; via = true; }                       // 500 - 300 via 5 - 3
+    else if (v === 1) { do { a = ri(21, 99) * 10; } while (a % 100 === 0); b = ri(1, Math.floor(a / 100)) * 100; } // 540 - 200
+    else { do { a = ri(21, 99) * 10; b = ri(11, 69) * 10; } while (a % 100 === 0 || b % 100 === 0 || b >= a); } // 540 - 160
+    Object.assign(q, { x: a, y: b, op: '−', a: a - b, key: 'min:' + v, via: via && [a / 100, b / 100] });
+  } else if (kind === 'keer') {
+    const f = ri(2, 9), n = ri(11, 19);
+    Object.assign(q, { x: f, y: n, op: '×', a: f * n, key: 'keer:' + f, split: idx < 5 });     // eerste helft met splits-hulp
+  } else if (kind === 'deel') {
+    const groups = ri(2, 5), each = ri(2, 6), total = groups * each;
+    const item = rnd([['diamant', 'diamanten'], ['goud', 'goudklompjes'], ['robijn', 'robijnen'], ['smaragd', 'smaragden'], ['kolen', 'kolen']]);
+    const v = rnd(['verdeel', 'verdeel', 'opdeel', 'plaatje']);
+    Object.assign(q, { total, groups, each, item, v, x: total, y: v === 'opdeel' ? each : groups, op: ':', a: v === 'opdeel' ? groups : each, key: 'deel:' + v });
+  } else {
+    const h = ri(1, 12), mins = rnd([5, 10, 50, 55]), v = rnd(['analoog', 'analoog', 'digitaal', 'digitaal', 'kies']);
+    const pm = Math.random() < 0.5, text = clockText(h, mins), dig = clockDigital(h, mins, pm);
+    Object.assign(q, { h, mins, v, dig, text, input: 'choice', key: 'klok:' + mins, a: v === 'kies' ? dig : text,
+      choices: v === 'kies' ? clockDigitalChoices(h, mins, pm) : clockTextChoices(h, mins) });
+  }
+  return q;
+}
+// 3:55 heet in het Nederlands "5 voor 4": bij 50 en 55 minuten tel je naar het volgende uur.
+function clockText(h, m) { const nh = h % 12 + 1; return m === 5 ? `5 over ${h}` : m === 10 ? `10 over ${h}` : m === 50 ? `10 voor ${nh}` : `5 voor ${nh}`; }
+function clockDigital(h, m, pm) { const hh = h === 12 ? 12 : pm ? h + 12 : h; return String(hh).padStart(2, '0') + ':' + String(m).padStart(2, '0'); }
+function clockTextChoices(h, m) {
+  const nh = h % 12 + 1, ph = (h + 10) % 12 + 1, set = new Set([clockText(h, m)]);
+  shuffle([`5 over ${h}`, `10 over ${h}`, `5 voor ${nh}`, `10 voor ${nh}`, `5 voor ${h}`, `10 voor ${h}`, `5 over ${nh}`, `10 over ${nh}`, `${m >= 50 ? 5 : 10} over ${ph}`])
+    .forEach(c => { if (set.size < 4) set.add(c); });
+  return shuffle([...set]);
+}
+function clockDigitalChoices(h, m, pm) {
+  const set = new Set([clockDigital(h, m, pm)]), nh = h % 12 + 1, ph = (h + 10) % 12 + 1;
+  shuffle([[h, 60 - m], [nh, m], [ph, m], [h, m === 5 ? 10 : m === 10 ? 5 : m === 50 ? 55 : 50], [nh, 60 - m]])
+    .forEach(([a, b]) => { if (set.size < 4) set.add(clockDigital(a, b, pm)); });
+  let k = 1; while (set.size < 4) set.add(clockDigital((h + k++) % 12 + 1, m, pm));
+  return shuffle([...set]);
+}
+function clockSVG(h, m, cls = '') {
+  const ha = ((h % 12) + m / 60) * 30, ma = m * 6;
+  const hand = (ang, len, w, col) => { const r = (ang - 90) * Math.PI / 180; return `<line x1="50" y1="50" x2="${(50 + len * Math.cos(r)).toFixed(1)}" y2="${(50 + len * Math.sin(r)).toFixed(1)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`; };
+  let t = '';
+  for (let i = 0; i < 60; i++) { const r = (i * 6 - 90) * Math.PI / 180, big = i % 5 === 0, a = big ? 40 : 43;
+    t += `<line x1="${(50 + a * Math.cos(r)).toFixed(1)}" y1="${(50 + a * Math.sin(r)).toFixed(1)}" x2="${(50 + 46 * Math.cos(r)).toFixed(1)}" y2="${(50 + 46 * Math.sin(r)).toFixed(1)}" stroke="#1f2a37" stroke-width="${big ? 2.2 : 0.8}"/>`; }
+  for (let i = 1; i <= 12; i++) { const r = (i * 30 - 90) * Math.PI / 180; t += `<text x="${(50 + 32 * Math.cos(r)).toFixed(1)}" y="${(50 + 32 * Math.sin(r) + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="900" fill="#1f2a37" font-family="Nunito, sans-serif">${i}</text>`; }
+  return `<svg class="clock ${cls}" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#fff" stroke="#1f2a37" stroke-width="3"/>${t}${hand(ha, 22, 5, '#1f2a37')}${hand(ma, 36, 3, '#e0453a')}<circle cx="50" cy="50" r="3.5" fill="#1f2a37"/></svg>`;
+}
+// Tekst van de som met antwoord, voor feedback.
+function sumText(q) {
+  if (q.kind === 'klok') return q.v === 'kies' ? `${q.text} is ${q.dig}` : `het is ${q.text}`;
+  if (!q.kind || q.kind === 'x') return `${q.m} × ${q.t} = ${q.a}`;
+  return `${q.x} ${q.op} ${q.y} = ${q.a}`;
+}
 const MOB_IDS = Object.keys(PX.MOBS);
 // ================= MIJN WERELD: data =================
 const WBLOCKS = ['grass', 'sand', 'planks', 'stone', 'snow', 'bricks', 'ice', 'gold', 'lava', 'diamond', 'obsidian'];
@@ -312,7 +389,7 @@ function topbar(back) {
     </div></div>
     <div class="counters">
       <div class="counter" title="Munten">${img(PX.coin())}<span>${p.coins}</span></div>
-      <div class="counter" title="Sterren">${img(PX.star())}${Object.values(p.stars).reduce((a, b) => a + b, 0)}/30</div>
+      <div class="counter" title="Sterren">${img(PX.star())}${Object.values(p.stars).reduce((a, b) => a + b, 0)}/${MAX_STARS}</div>
       <div class="counter" title="Mobs gevangen">${img(PX.mob('paddo'))}${Object.keys(p.mobs).length}/${MOB_IDS.length}</div>
     </div>
   </div>`;
@@ -398,6 +475,20 @@ function renderHome() {
             ${open && st === 0 ? '<span class="badge">NIEUW</span>' : ''}
             <div class="blkwrap">${img(PX.block(w.block), 'blk')}${img(PX.mob(w.mob), 'guard mob')}${open ? '' : img(PX.lock(), 'lockicon')}</div>
             <div class="tnum">Tafel ${w.t}</div><div class="wname">${w.name}</div>
+            <div class="stars">${[1, 2, 3].map(s => img(PX.star(st >= s))).join('')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head" style="margin-bottom:10px"><h2>Groep 5 · blok 3</h2><span class="muted small">Oefen het huiswerk van deze weken</span></div>
+      <div class="worlds">
+        ${BLOK.map(w => {
+          const st = p.stars[w.id] || 0;
+          return `<div class="world blokw" data-act="play" data-t="${w.id}">
+            ${st === 0 ? '<span class="badge">NIEUW</span>' : ''}
+            <div class="blkwrap">${img(PX.block(w.block), 'blk')}<span class="blkop">${w.icon}</span>${img(PX.mob(w.mob), 'guard mob')}</div>
+            <div class="tnum">${w.name}</div><div class="wname">${w.sub}</div>
             <div class="stars">${[1, 2, 3].map(s => img(PX.star(st >= s))).join('')}</div>
           </div>`;
         }).join('')}
@@ -543,7 +634,7 @@ function fightPrompt(x, y, prev) {
 
 // ================= SPEL =================
 let G = null;
-const mkQ = (t, m, idx, retry = false) => ({ t, m, a: t * m, idx, retry, tries: 0, hinted: false });
+const mkQ = (t, m, idx, retry = false) => ({ kind: 'x', t, m, a: t * m, key: t + 'x' + m, idx, retry, tries: 0, hinted: false, input: 'num' });
 const isRound = () => G && (G.mode === 'tafel' || G.mode === 'mix');
 function pickFact(tables) {
   const p = P(), items = [];
@@ -567,10 +658,12 @@ function startRound(mode, table) {
   const tables = mode === 'tafel' ? [table] : unlockedTables(p);
   G = { mode, table, tables, queue: [], retries: [], results: [], streak: 0, best: 0, coins: 0, xp: 0, ores: {}, fastest: 99, times: [],
     firstCorrect: 0, hints: 0, answer: '', locked: true, crack: 0, score: 0, retryCount: 0, done: false };
-  if (mode === 'tafel') G.queue = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).map((m, i) => mkQ(table, m, i));
+  const bw = mode === 'tafel' ? BLOK.find(w => w.id === table) : null;
+  if (bw) { G.queue = Array.from({ length: 10 }, (_, i) => genBlok(bw.kind, i)); G.forceChoice = bw.kind === 'klok'; G.kind = bw.kind; }
+  else if (mode === 'tafel') G.queue = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).map((m, i) => mkQ(table, m, i));
   if (mode === 'mix') { for (let i = 0; i < 15; i++) { const [t, m] = pickFact(tables); G.last = t + 'x' + m; G.queue.push(mkQ(t, m, i)); } }
   G.mainTotal = G.queue.length;
-  if (mode === 'tafel') { const w = WORLDS.find(w => w.t === table); G.block = w.block; G.mob = w.mob; }
+  if (mode === 'tafel') { const w = findWorld(table); G.block = w.block; G.mob = w.mob; }
   if (mode === 'mix') { G.block = 'obsidian'; G.mob = rnd(unlockedTables(p).map(t => WORLDS.find(w => w.t === t).mob)); }
   if (mode === 'race') { G.block = 'planks'; G.mob = 'wolkje'; G.raceSecs = 60; }
   if (mode === 'race5') { G.mode = mode = 'race'; G.race5 = true; G.block = 'gold'; G.mob = 'robo'; G.raceSecs = 300; }
@@ -618,7 +711,7 @@ function renderGame() {
     right = `<div class="boss-wrap"><div class="boss-name">${bossName(G.boss)}</div>
       ${img(bossPic(G.boss), 'boss-img mob', 'id="bossImg"')}<div class="hpbar"><div id="hpBar" style="width:100%"></div><span id="hpTxt"></span></div></div>`;
   }
-  const input = p.settings.input === 'choice'
+  const input = (p.settings.input === 'choice' || G.forceChoice)
     ? `<div class="choices" id="choices"></div>`
     : `<div class="keypad">${[7, 8, 9, 4, 5, 6, 1, 2, 3].map(n => `<button class="btn light" data-key="${n}">${n}</button>`).join('')}
         <button class="btn red" data-key="del">⌫</button><button class="btn light" data-key="0">0</button><button class="btn green" data-key="ok">OK</button></div>`;
@@ -658,11 +751,51 @@ function showSum(state) {
   const q = G.current, el = $('#sum'), qq = $('#question');
   if (!el) return;
   qq.className = 'card question' + (state ? ' ' + state : '');
-  el.innerHTML = `${q.m}<span class="op">×</span>${q.t}<span class="op">=</span><span class="ans ${!G.answer ? 'empty' : ''}">${G.answer || '?'}</span>`;
+  const ans = `<span class="ans ${!G.answer ? 'empty' : ''}">${G.answer || '?'}</span>`, op = o => `<span class="op">${o}</span>`;
+  const shown = state === 'hint' || state === 'right';
+  el.className = 'sum' + (q.kind && q.kind !== 'x' ? ' long' : '');
+  if (!q.kind || q.kind === 'x') { el.innerHTML = `${q.m}${op('×')}${q.t}${op('=')}${ans}`; return; }
+  if (q.kind === 'plus' || q.kind === 'min') {
+    const small = q.via ? q.via[0] + (q.op === '+' ? q.via[1] : -q.via[1]) : 0;
+    el.innerHTML = `<div>${q.x}${op(q.op)}${q.y}${op('=')}${ans}</div>` + (q.via ? `<div class="via">Kleine som: ${q.via[0]} ${q.op} ${q.via[1]} = ${shown ? small : '?'}</div>` : '');
+    return;
+  }
+  if (q.kind === 'keer') {
+    const t = Math.floor(q.y / 10) * 10, e = q.y - t;
+    el.innerHTML = `<div>${q.x}${op('×')}${q.y}${op('=')}${ans}</div>` + (q.split || shown ? `<div class="via">Splits: ${q.x} × ${t} + ${q.x} × ${e}${shown ? ` = ${q.x * t} + ${q.x * e}` : ''}</div>` : '');
+    return;
+  }
+  if (q.kind === 'deel') {
+    const [ore, many] = q.item, o = img(PX.ore(ore)), ch = img(PX.chest());
+    let story, pic;
+    if (q.v === 'verdeel') {
+      story = `Je hebt ${q.total} ${many}. Je verdeelt ze eerlijk over ${q.groups} kisten. Hoeveel komen er in elke kist?`;
+      pic = `<div class="dpic"><div class="dpile">${Array.from({ length: q.total }, () => o).join('')}</div><div class="dchests">${Array.from({ length: q.groups }, () => ch).join('')}</div></div>`;
+    } else if (q.v === 'opdeel') {
+      story = `Je hebt ${q.total} ${many}. In elke kist gaan er ${q.each}. Hoeveel kisten heb je nodig?`;
+      pic = `<div class="dpic"><div class="dpile">${Array.from({ length: q.total }, () => o).join('')}</div></div>`;
+    } else {
+      story = `Welke deelsom hoort bij het plaatje? Hoeveel zit er in elke kist?`;
+      pic = `<div class="dpic"><div class="dgroups">${Array.from({ length: q.groups }, () => `<div class="dgroup">${ch}<div>${Array.from({ length: q.each }, () => o).join('')}</div></div>`).join('')}</div></div>`;
+    }
+    el.innerHTML = `<div class="story">${story}</div>${pic}<div>${q.x}${op(':')}${q.y}${op('=')}${ans}</div>`;
+    return;
+  }
+  // klok
+  if (q.v === 'analoog') el.innerHTML = `<div class="story">Hoe laat is het?</div>${clockSVG(q.h, q.mins)}${shown ? `<div class="via big">${q.text}</div>` : ''}`;
+  else if (q.v === 'digitaal') el.innerHTML = `<div class="story">Hoe laat is het?</div><div class="digi">${q.dig}</div>${shown ? `<div class="via big">${q.text}</div>` : ''}`;
+  else el.innerHTML = `<div class="story">Hoe schrijf je <b>${q.text}</b> op een digitale klok?</div>${shown ? clockSVG(q.h, q.mins) + `<div class="via big">${q.dig}</div>` : ''}`;
 }
 function setFeedback(txt, cls = '') { const fb = $('#feedback'); if (fb) { fb.className = 'feedback ' + cls; fb.textContent = txt; } }
 
 function choicesFor(q) {
+  if (q.choices) return q.choices;
+  if (q.kind && q.kind !== 'x') {
+    const d = q.kind === 'plus' || q.kind === 'min' ? [10, -10, 100, -100, 20, -20, 1] : q.kind === 'keer' ? [q.x, -q.x, 10, -10, 1, -1] : [1, -1, 2, -2, 3];
+    const set = new Set([q.a]); shuffle(d).forEach(v => { if (set.size < 4 && q.a + v > 0) set.add(q.a + v); });
+    let k = 3; while (set.size < 4) set.add(q.a + k++);
+    return shuffle([...set]);
+  }
   const set = new Set([q.a]);
   const c = shuffle([q.t * (q.m + 1), q.t * (q.m - 1), (q.t + 1) * q.m, (q.t - 1) * q.m, q.a + 1, q.a - 1, q.a + 2, q.a + 10, q.a - 10, q.a + q.t]);
   c.forEach(v => { if (set.size < 4 && v > 0 && v !== q.a) set.add(v); });
@@ -706,7 +839,7 @@ function armBoss() {
     q.tries = 2; G.streak = 0;
     const bi = $('#bossImg'); if (bi) floater(bi, 'AANVAL!', '#ffd0c8');
     if (hurtPlayer()) { G.answer = String(q.a); showSum('hint'); setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
-    giveUp(q, 'bad', `Te laat! ${q.m} × ${q.t} = ${q.a}`);
+    giveUp(q, 'bad', `Te laat! ${sumText(q)}`);
   }, G.bossSecs * 1000);
 }
 
@@ -719,27 +852,27 @@ function nextQ() {
   } else {
     const [t, m] = pickFact(G.tables); q = mkQ(t, m, 0);
   }
-  G.current = q; G.last = q.t + 'x' + q.m; G.answer = ''; G.locked = false; G.qStart = performance.now();
+  G.current = q; G.last = q.key; G.answer = ''; G.locked = false; G.qStart = performance.now();
   showSum();
   setFeedback(q.retry ? 'Deze komt nog een keer terug!' : '', 'info');
   startSpeedbar();
   const ch = $('#choices');
-  if (ch) ch.innerHTML = choicesFor(q).map(v => `<button class="btn light" data-choice="${v}">${v}</button>`).join('');
+  if (ch) { ch.classList.toggle('txt', q.input === 'choice'); ch.innerHTML = choicesFor(q).map(v => `<button class="btn light" data-choice="${v}">${v}</button>`).join(''); }
   updateHUD();
 }
 
 function press(k) {
-  if (!G || G.locked || !G.current) return;
+  if (!G || G.locked || !G.current || G.current.input === 'choice') return;
   SFX.click();
   if (k === 'del') G.answer = G.answer.slice(0, -1);
   else if (k === 'ok') { if (G.answer) submit(+G.answer); return; }
-  else if (G.answer.length < 3) G.answer += k;
+  else if (G.answer.length < 4) G.answer += k;
   showSum();
   if (G.answer.length >= String(G.current.a).length) submit(+G.answer);
 }
 
 function recordFact(q, ok, dt) {
-  const p = P(), key = q.t + 'x' + q.m;
+  const p = P(), key = q.key;
   const f = p.facts[key] || (p.facts[key] = { c: 0, w: 0, time: 0 });
   if (ok) { f.c++; f.time += Math.min(dt, 20); p.stats.correct++; } else { f.w++; p.stats.wrong++; }
 }
@@ -749,7 +882,7 @@ function markResult(q, val) { if (isRound() && !q.retry && !G.results[q.idx]) G.
 function submit(val, btn) {
   if (!G || G.locked || !G.current) return;
   G.locked = true; clearTimeout(G.bossTO);
-  const q = G.current, dt = (performance.now() - G.qStart) / 1000, ok = val === q.a;
+  const q = G.current, dt = (performance.now() - G.qStart) / 1000, ok = String(val) === String(q.a);
   // alleen de eerste poging telt mee voor de statistieken
   if (q.tries === 0) recordFact(q, ok, dt);
   if (btn) btn.classList.add(ok ? 'correct' : 'wrongc');
@@ -775,6 +908,7 @@ function onCorrect(q, dt) {
   if (first && dt < 4) { xp += 5; coins += 1; }
   if (G.streak >= 5) coins += 1;
   G.xp += xp; G.coins += coins;
+  if (q.input !== 'choice') G.answer = String(q.a);
   showSum('right');
   setFeedback((first && G.streak > 0 && G.streak % 5 === 0) ? `COMBO! ${G.streak} op rij!` : (first ? rnd(PRAISE) + (dt < 3 ? ' Snel!' : '') : 'Goed zo, nu wel!'), 'good');
   sayBubble(rnd(PRAISE));
@@ -833,16 +967,16 @@ function onWrong(q, btn) {
     return;
   }
   // Tweede keer fout: antwoord kort laten zien en snel door.
-  giveUp(q, 'bad', `Het was ${q.m} × ${q.t} = ${q.a}`);
+  giveUp(q, 'bad', `Het was: ${sumText(q)}`);
 }
 
 function giveUp(q, mark, text) {
   const myG = G;
   markResult(q, mark);
-  if (isRound() && G.retryCount < 6) { G.retries.push(mkQ(q.t, q.m, q.idx, true)); G.retryCount++; }
-  G.answer = String(q.a); showSum('hint');
+  if (isRound() && G.retryCount < 6) { G.retries.push(q.kind === 'x' ? mkQ(q.t, q.m, q.idx, true) : { ...q, retry: true, tries: 0, hinted: false }); G.retryCount++; }
+  G.answer = q.input === 'choice' ? '' : String(q.a); showSum('hint');
   setFeedback(text, 'info');
-  const ch = $('#choices'); if (ch) [...ch.children].forEach(b => { if (+b.dataset.choice === q.a) b.classList.add('correct'); });
+  const ch = $('#choices'); if (ch) [...ch.children].forEach(b => { if (b.dataset.choice === String(q.a)) b.classList.add('correct'); });
   updateHUD();
   setTimeout(() => { if (G === myG) nextQ(); }, T_GIVEUP);
 }
@@ -856,7 +990,7 @@ function useHint() {
   P().stats.hints++;
   SFX.hint();
   if (fighting() && hurtPlayer()) { G.answer = String(q.a); showSum('hint'); const myG = G; setTimeout(() => { if (G === myG) finishRound({ win: false }); }, 1200); return; }
-  giveUp(q, 'bad', `${q.m} × ${q.t} = ${q.a}. Onthouden!`);
+  giveUp(q, 'bad', `${sumText(q)}. Onthouden!`);
 }
 
 function blockColors(type) {
@@ -877,7 +1011,7 @@ function finishRound(extra = {}) {
   r.avg = avg;
   if (isRound()) {
     const acc = G.firstCorrect / G.mainTotal;
-    r.stars = acc >= 0.9 && avg <= 6 ? 3 : acc >= 0.8 ? 2 : acc >= 0.6 ? 1 : 0;
+    r.stars = acc >= 0.9 && avg <= (SLOW[G.kind] || 6) ? 3 : acc >= 0.8 ? 2 : acc >= 0.6 ? 1 : 0;
     r.perfect = G.firstCorrect === G.mainTotal;
     if (r.perfect) { G.coins += 10; G.xp += 25; }
     if (G.mode === 'tafel') {
@@ -947,8 +1081,8 @@ function renderResult(r) {
     line = (r.win ? (r.firstWin ? 'Nieuwe eindbaas verslagen! Je bent een echte held!' : 'Weer gewonnen!') : 'Oefen nog wat en probeer het opnieuw!')
       + ` <br>Volgende eindbaas: <b>${bossName(r.next)}</b> ${'★'.repeat(bossStats(bossLevel(p, r.next)).stars)}`;
   }
-  const idx = WORLDS.findIndex(w => w.t === r.table);
-  const next = r.mode === 'tafel' && idx < WORLDS.length - 1 && unlocked(p, idx + 1) ? WORLDS[idx + 1] : null;
+  const idx = WORLDS.findIndex(w => w.t === r.table), bidx = BLOK.findIndex(w => w.id === r.table);
+  const next = r.mode !== 'tafel' ? null : bidx >= 0 ? (BLOK[bidx + 1] || null) : idx < WORLDS.length - 1 && unlocked(p, idx + 1) ? WORLDS[idx + 1] : null;
   const top = r.mode === 'boss' || r.mode === 'wfight' ? img(r.mode === 'boss' ? bossPic(r.boss) : monPic(r.mon.id), 'mob', 'style="width:110px;height:110px"') : `<div class="mine-block" id="resBlock" style="width:100px">${img(PX.block(G.block), 'base')}${img(PX.crack(10))}</div>`;
   app.innerHTML = `<div class="screen result">
     <div class="card">
@@ -971,7 +1105,7 @@ function renderResult(r) {
       ${r.mode === 'wfight' ? `<button class="btn green" data-act="world">${img(PX.block('grass'))} Naar mijn wereld</button>` : `<button class="btn light" data-act="home">◀ Kaart</button>
       <button class="btn gold" data-act="again">↻ Nog een keer</button>`}
       ${r.mode === 'boss' && r.drops ? `<button class="btn green" data-act="world">${img(PX.block('grass'))} Bouwen in mijn wereld</button>` : ''}
-      ${next ? `<button class="btn green" data-act="play" data-t="${next.t}">Volgende: tafel ${next.t} ▶</button>` : ''}
+      ${next ? `<button class="btn green" data-act="play" data-t="${wKey(next)}">Volgende: ${next.id ? next.name : 'tafel ' + next.t} ▶</button>` : ''}
     </div>
   </div>`;
   G.lastMode = r.race5 ? 'race5' : r.mode;
@@ -1167,7 +1301,7 @@ const ACTIONS = {
     save(); EDIT = null; renderHome();
   },
   home: () => renderHome(),
-  play: d => startRound('tafel', +d.t),
+  play: d => startRound('tafel', BLOK.some(w => w.id === d.t) ? d.t : +d.t),
   again: () => G && G.lastMode === 'tafel' ? startRound('tafel', G.table) : startRound(G ? G.lastMode : 'mix'),
   mix: () => startRound('mix'),
   race: () => startRound('race'),
@@ -1221,7 +1355,7 @@ const ACTIONS = {
 document.addEventListener('click', e => {
   SFX.unlock();
   const k = e.target.closest('[data-key]'); if (k) { press(k.dataset.key); return; }
-  const c = e.target.closest('[data-choice]'); if (c) { if (!c.classList.contains('wrongc')) { SFX.click(); submit(+c.dataset.choice, c); } return; }
+  const c = e.target.closest('[data-choice]'); if (c) { if (!c.classList.contains('wrongc')) { SFX.click(); submit(c.dataset.choice, c); } return; }
   const a = e.target.closest('[data-act]'); if (!a) return;
   const fn = ACTIONS[a.dataset.act];
   if (fn) { if (!['av', 'choose', 'hint'].includes(a.dataset.act)) SFX.click(); fn(a.dataset); }
